@@ -1,0 +1,9 @@
+const success = (res, data = null, statusCode = 200) => {
+  return res.status(statusCode).json({ success: true, data });
+};
+
+const error = (res, message = "Lỗi hệ thống", statusCode = 400) => {
+  return res.status(statusCode).json({ success: false, error: message });
+};
+
+module.exports = { success, error };
