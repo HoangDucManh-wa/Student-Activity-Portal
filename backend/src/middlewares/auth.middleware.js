@@ -1,51 +1,70 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { verifyAccessToken, hashToken } = require("../utils/jwt");
+const { redis } = require("../config/redis");
+const prisma = require("../config/prisma");
+const { REDIS_PREFIX } = require("../utils/constants");
+const AppError = require("../utils/app-error");
 
 const protect = async (req, res, next) => {
   try {
-    let token;
+    const authHeader = req.headers.authorization;
 
-    // Check for token in headers
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      throw new AppError("AUTH_TOKEN_MISSING");
     }
 
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Vui lòng đăng nhập để truy cập",
-      });
+    const token = authHeader.split(" ")[1];
+
+    // Check Redis blacklist
+    const tokenHash = hashToken(token);
+    const isBlacklisted = await redis.get(
+      `${REDIS_PREFIX.BLACKLIST}${tokenHash}`
+    );
+
+    if (isBlacklisted) {
+      throw new AppError("AUTH_TOKEN_BLACKLISTED");
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verify signature + expiry
+    const decoded = verifyAccessToken(token);
 
-    // Get user from token
-    req.user = await User.findById(decoded.id).select("-password");
-
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Người dùng không tồn tại",
-      });
-    }
-
-    if (!req.user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: "Tài khoản đã bị vô hiệu hóa",
-      });
-    }
-
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: "Token không hợp lệ hoặc đã hết hạn",
+    // Check user
+    const user = await prisma.nguoiDung.findFirst({
+      where: { MaNguoiDung: decoded.id, isDelete: false },
+      select: {
+        MaNguoiDung: true,
+        TenNguoiDung: true,
+        Email: true,
+        LoaiTaiKhoan: true,
+        TrangThai: true,
+      },
     });
+
+    if (!user) {
+      throw new AppError("USER_NOT_FOUND");
+    }
+
+    if (user.TrangThai === "KHOA") {
+      throw new AppError("AUTH_ACCOUNT_LOCKED");
+    }
+
+    if (user.TrangThai === "CHO_DUYET") {
+      throw new AppError("AUTH_ACCOUNT_PENDING");
+    }
+
+    req.user = user;
+    req.token = token;
+    next();
+  } catch (err) {
+    if (err instanceof AppError) {
+      return next(err);
+    }
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError("AUTH_TOKEN_EXPIRED"));
+    }
+    if (err.name === "JsonWebTokenError") {
+      return next(new AppError("AUTH_TOKEN_INVALID"));
+    }
+    next(err);
   }
 };
 

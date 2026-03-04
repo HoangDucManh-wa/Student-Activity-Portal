@@ -1,38 +1,49 @@
-// User roles
-const USER_ROLES = {
-  STUDENT: "student",
-  ADMIN: "admin",
-  CLUB_ADMIN: "club_admin",
+const LOAI_TAI_KHOAN = {
+  SINH_VIEN: "SINH_VIEN",
+  CHU_CLB: "CHU_CLB",
+  ADMIN: "ADMIN",
 };
 
-// Event status
-const EVENT_STATUS = {
-  UPCOMING: "upcoming",
-  ONGOING: "ongoing",
-  COMPLETED: "completed",
-  CANCELLED: "cancelled",
+const TRANG_THAI_NGUOI_DUNG = {
+  HOAT_DONG: "HOAT_DONG",
+  KHOA: "KHOA",
+  CHO_DUYET: "CHO_DUYET",
 };
 
-// Registration status
-const REGISTRATION_STATUS = {
-  REGISTERED: "registered",
-  ATTENDED: "attended",
-  CANCELLED: "cancelled",
+const TRANG_THAI_HOAT_DONG = {
+  SAP_DIEN_RA: "SAP_DIEN_RA",
+  DANG_DIEN_RA: "DANG_DIEN_RA",
+  DA_KET_THUC: "DA_KET_THUC",
+  DA_HUY: "DA_HUY",
 };
 
-// Faculty list (example - adjust to your university)
-const FACULTIES = [
-  "Công nghệ thông tin",
-  "Kinh tế",
-  "Ngoại ngữ",
-  "Sư phạm",
-  "Khoa học tự nhiên",
-  "Kỹ thuật",
-];
+const TRANG_THAI_PHIEU_DANG_KY = {
+  CHO_DUYET: "CHO_DUYET",
+  DA_DUYET: "DA_DUYET",
+  TU_CHOI: "TU_CHOI",
+  DA_HUY: "DA_HUY",
+};
+
+const TRANG_THAI_DOT_TUYEN = {
+  DANG_MO: "DANG_MO",
+  DA_DONG: "DA_DONG",
+  DA_KET_THUC: "DA_KET_THUC",
+};
+
+const REDIS_PREFIX = {
+  BLACKLIST: "blacklist:",
+  REFRESH: "refresh:",
+  RESET_PASSWORD: "reset_pwd:",
+};
+
+const RESET_PASSWORD_TTL = 15 * 60;
 
 module.exports = {
-  USER_ROLES,
-  EVENT_STATUS,
-  REGISTRATION_STATUS,
-  FACULTIES,
+  LOAI_TAI_KHOAN,
+  TRANG_THAI_NGUOI_DUNG,
+  TRANG_THAI_HOAT_DONG,
+  TRANG_THAI_PHIEU_DANG_KY,
+  TRANG_THAI_DOT_TUYEN,
+  REDIS_PREFIX,
+  RESET_PASSWORD_TTL,
 };

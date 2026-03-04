@@ -1,63 +1,62 @@
 const nodemailer = require("nodemailer");
 
-// Create transporter
 const createTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false,
+    host: process.env.MAIL_HOST,
+    port: parseInt(process.env.MAIL_PORT) || 587,
+    secure: parseInt(process.env.MAIL_PORT) === 465,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASS,
     },
   });
 };
 
-// Send email
-const sendEmail = async ({ to, subject, html }) => {
-  try {
-    // Skip if email credentials not configured
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log("⚠️ Email not configured, skipping email send");
-      return;
-    }
+const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
+  const transporter = createTransporter();
 
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"Student Portal" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      html,
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${to}`);
-  } catch (error) {
-    console.error(`❌ Email send error: ${error.message}`);
-  }
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM,
+    to,
+    subject: "Khôi phục mật khẩu - Student Activity Portal",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Khôi phục mật khẩu</h2>
+        <p>Xin chào <strong>${name}</strong>,</p>
+        <p>Bạn đã yêu cầu khôi phục mật khẩu. Nhấp vào nút bên dưới để đặt lại:</p>
+        <div style="margin: 24px 0;">
+          <a href="${resetUrl}"
+             style="background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">
+            Đặt lại mật khẩu
+          </a>
+        </div>
+        <p>Link có hiệu lực trong <strong>15 phút</strong>.</p>
+        <p>Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>
+        <hr/>
+        <small style="color:#999;">Student Activity Portal</small>
+      </div>
+    `,
+  });
 };
 
-// Email templates
-const emailTemplates = {
-  registrationConfirmation: (userName, eventName) => `
-    <h2>Đăng ký thành công!</h2>
-    <p>Xin chào ${userName},</p>
-    <p>Bạn đã đăng ký thành công sự kiện: <strong>${eventName}</strong></p>
-    <p>Vui lòng đến đúng giờ và mang theo thẻ sinh viên.</p>
-    <p>Trân trọng,<br/>Ban tổ chức</p>
-  `,
+const sendWelcomeEmail = async ({ to, name }) => {
+  const transporter = createTransporter();
 
-  cancellationNotice: (userName, eventName) => `
-    <h2>Hủy đăng ký</h2>
-    <p>Xin chào ${userName},</p>
-    <p>Bạn đã hủy đăng ký sự kiện: <strong>${eventName}</strong></p>
-    <p>Nếu có thay đổi, bạn có thể đăng ký lại nếu còn chỗ.</p>
-    <p>Trân trọng,<br/>Ban tổ chức</p>
-  `,
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM,
+    to,
+    subject: "Chào mừng đến với Student Activity Portal",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Đăng ký thành công!</h2>
+        <p>Xin chào <strong>${name}</strong>,</p>
+        <p>Tài khoản của bạn đã được tạo thành công trên <strong>Student Activity Portal</strong>.</p>
+        <p>Bạn có thể đăng nhập và khám phá các hoạt động, CLB tại trường ngay bây giờ.</p>
+        <hr/>
+        <small style="color:#999;">Student Activity Portal</small>
+      </div>
+    `,
+  });
 };
 
-module.exports = {
-  sendEmail,
-  emailTemplates,
-};
+module.exports = { sendPasswordResetEmail, sendWelcomeEmail };

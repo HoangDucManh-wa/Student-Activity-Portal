@@ -1,13 +1,30 @@
-const mongoose = require("mongoose");
+const prisma = require("./prisma");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ MongoDB connected");
+    await prisma.$connect();
+    console.log("✅ PostgreSQL connected via Prisma");
   } catch (error) {
-    console.error("❌ MongoDB Connection Error:", error.message);
+    console.error("❌ PostgreSQL Connection Error:", error.message);
+    await prisma.$disconnect();
     process.exit(1);
   }
 };
+
+const disconnectDB = async () => {
+  await prisma.$disconnect();
+  console.log("🔌 PostgreSQL disconnected");
+};
+
+// Graceful shutdown
+process.on("SIGINT", async () => {
+  await disconnectDB();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await disconnectDB();
+  process.exit(0);
+});
 
 module.exports = connectDB;

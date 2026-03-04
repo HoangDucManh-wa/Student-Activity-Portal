@@ -1,38 +1,26 @@
-const app = require("./app");
-const connectDB = require("./config/db");
-
-// Load environment variables
 require("dotenv").config();
 
-const PORT = process.env.PORT || 5000;
+const { validateEnv } = require("./config/env");
+const connectDB = require("./config/db");
+const { connectRedis } = require("./config/redis");
+const app = require("./app");
 
-// Connect to database
-connectDB();
+validateEnv();
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-});
+const PORT = process.env.PORT || 3000;
 
-// Handle unhandled promise rejections
+const start = async () => {
+  await connectDB();
+  await connectRedis();
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`);
+  });
+};
+
+start();
+
 process.on("unhandledRejection", (err) => {
-  console.error("❌ Unhandled Rejection:", err);
-  server.close(() => {
-    process.exit(1);
-  });
-});
-
-// Handle uncaught exceptions
-process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
+  console.error("Unhandled rejection:", err.message);
   process.exit(1);
-});
-
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("👋 SIGTERM received. Shutting down gracefully...");
-  server.close(() => {
-    console.log("✅ Process terminated");
-  });
 });

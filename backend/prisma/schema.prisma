@@ -1,0 +1,407 @@
+// This is your Prisma schema file
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// NGUOI_DUNG
+// ==========================================
+model NguoiDung {
+  MaNguoiDung     String   @id
+  TenNguoiDung    String
+  MaSV            String?
+  SDT             String?
+  Email           String?  @unique
+  LoaiTaiKhoan    String?
+  TrangThai       String?
+  MatKhau         String
+  Avatar          String?
+  isDelete        Boolean  @default(false)
+  createAt        DateTime @default(now())
+  createBy        String?
+  deleteBy        String?
+
+  // Relations
+  phieuDangKy     PhieuDangKy[]
+  thanhVienToChuc ThanhVienToChuc[]
+  thanhVienNhom   ThanhVienNhom[]
+  donUngTuyen     DonUngTuyen[]
+  taiLieuToChuc   TaiLieuToChuc[]
+  nhatKyHeThong   NhatKyHeThong[]
+  thongBao        ThongBao[]
+  nguoiDungVaiTro NguoiDungVaiTro[]
+
+  @@map("nguoi_dung")
+}
+
+// ==========================================
+// TO_CHUC
+// ==========================================
+model ToChuc {
+  MaToChuc        String   @id
+  TenToChuc       String
+  LoaiToChuc      String?
+  Logo            String?
+  MoTa            String?
+  AnhBia          String?
+  isDelete        Boolean  @default(false)
+  createAt        DateTime @default(now())
+  createBy        String?
+  deleteBy        String?
+
+  // Relations
+  hoatDong        HoatDong[]
+  thanhVienToChuc ThanhVienToChuc[]
+  dotTuyenClb     DotTuyenClb[]
+  taiLieuToChuc   TaiLieuToChuc[]
+
+  @@map("to_chuc")
+}
+
+// ==========================================
+// DANH_MUC_HOAT_DONG
+// ==========================================
+model DanhMucHoatDong {
+  MaDanhMuc  String   @id
+  TenDanhMuc String
+  isDelete   Boolean  @default(false)
+  createAt   DateTime @default(now())
+  createBy   String?
+  deleteBy   String?
+
+  // Relations
+  hoatDong   HoatDong[]
+
+  @@map("danh_muc_hoat_dong")
+}
+
+// ==========================================
+// HOAT_DONG
+// ==========================================
+model HoatDong {
+  MaHoatDong        String   @id
+  TenHoatDong       String
+  DiaDiem           String?
+  ThoiGianBatDau    DateTime?
+  ThoiGianKetThuc   DateTime?
+  HanDangKy         DateTime?
+  SoLuongNguoiToiDa Int?
+  DangKyNhom        Boolean?
+  TrangThaiPheDuyet String?
+  AnhBia            String?
+  MoTa              String?
+  MaToChuc          String
+  MaDanhMuc         String
+  isDelete          Boolean  @default(false)
+  createAt          DateTime @default(now())
+  createBy          String?
+  deleteBy          String?
+
+  // Relations
+  toChuc       ToChuc          @relation(fields: [MaToChuc], references: [MaToChuc])
+  danhMuc      DanhMucHoatDong @relation(fields: [MaDanhMuc], references: [MaDanhMuc])
+  phieuDangKy  PhieuDangKy[]
+
+  @@map("hoat_dong")
+}
+
+// ==========================================
+// PHIEU_DANG_KY
+// ==========================================
+model PhieuDangKy {
+  MaPhieu        String   @id
+  TrangThai      String?
+  ThoiGianDangKy DateTime @default(now())
+  LoaiDangKy     String?
+  MaNguoiDung    String
+  MaHoatDong     String
+  isDelete       Boolean  @default(false)
+  createAt       DateTime @default(now())
+  createBy       String?
+  deleteBy       String?
+
+  // Relations
+  nguoiDung     NguoiDung      @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+  hoatDong      HoatDong       @relation(fields: [MaHoatDong], references: [MaHoatDong])
+  thanhVienNhom ThanhVienNhom[]
+  danhGia       DanhGia?
+  chiTietDiemDanh ChiTietDiemDanh?
+
+  @@map("phieu_dang_ky")
+}
+
+// ==========================================
+// THANH_VIEN_TO_CHUC (Junction N-N)
+// ==========================================
+model ThanhVienToChuc {
+  MaNguoiDung String
+  MaToChuc    String
+  ChucVu      String?
+  NgayThamGia DateTime? @db.Date
+  isDelete    Boolean   @default(false)
+  createAt    DateTime  @default(now())
+  createBy    String?
+  deleteBy    String?
+
+  // Relations
+  nguoiDung NguoiDung @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+  toChuc    ToChuc    @relation(fields: [MaToChuc], references: [MaToChuc])
+
+  @@id([MaNguoiDung, MaToChuc])
+  @@map("thanh_vien_to_chuc")
+}
+
+// ==========================================
+// THANH_VIEN_NHOM (Junction N-N)
+// ==========================================
+model ThanhVienNhom {
+  MaPhieu     String
+  MaNguoiDung String
+  VaiTro      String?
+  isDelete    Boolean  @default(false)
+  createAt    DateTime @default(now())
+  createBy    String?
+  deleteBy    String?
+
+  // Relations
+  phieuDangKy PhieuDangKy @relation(fields: [MaPhieu], references: [MaPhieu])
+  nguoiDung   NguoiDung   @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+
+  @@id([MaPhieu, MaNguoiDung])
+  @@map("thanh_vien_nhom")
+}
+
+// ==========================================
+// DOT_TUYEN_CLB
+// ==========================================
+model DotTuyenClb {
+  MaDot       String    @id
+  TenDot      String
+  MoTa        String?
+  NgayBatDau  DateTime? @db.Date
+  NgayKetThuc DateTime? @db.Date
+  TrangThai   String?
+  MaToChuc    String
+  isDelete    Boolean   @default(false)
+  createAt    DateTime  @default(now())
+  createBy    String?
+  deleteBy    String?
+
+  // Relations
+  toChuc      ToChuc        @relation(fields: [MaToChuc], references: [MaToChuc])
+  donUngTuyen DonUngTuyen[]
+
+  @@map("dot_tuyen_clb")
+}
+
+// ==========================================
+// DON_UNG_TUYEN
+// ==========================================
+model DonUngTuyen {
+  MaDon              String    @id
+  CauTraLoiPhongVan  String?
+  NgayNop            DateTime  @default(now()) @db.Date
+  LichPhongVan       DateTime?
+  KetQuaPhongVan     String?
+  GhiChu             String?
+  MaDot              String
+  MaNguoiDung        String
+  isDelete           Boolean   @default(false)
+  createAt           DateTime  @default(now())
+  createBy           String?
+  deleteBy           String?
+
+  // Relations
+  dotTuyenClb DotTuyenClb @relation(fields: [MaDot], references: [MaDot])
+  nguoiDung   NguoiDung   @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+
+  @@map("don_ung_tuyen")
+}
+
+// ==========================================
+// DANH_GIA
+// ==========================================
+model DanhGia {
+  MaDanhGia       String   @id
+  SoSao           Int?
+  NhanXet         String?
+  ThoiGianDanhGia DateTime @default(now())
+  MaPhieu         String   @unique
+  isDelete        Boolean  @default(false)
+  createAt        DateTime @default(now())
+  createBy        String?
+  deleteBy        String?
+
+  // Relations
+  phieuDangKy PhieuDangKy @relation(fields: [MaPhieu], references: [MaPhieu])
+
+  @@map("danh_gia")
+}
+
+// ==========================================
+// CHI_TIET_DIEM_DANH
+// ==========================================
+model ChiTietDiemDanh {
+  MaPhieu          String    @id
+  ThoiGianCheckin  DateTime?
+  ThoiGianCheckout DateTime?
+  MinhChung        String?
+  isDelete         Boolean   @default(false)
+  createAt         DateTime  @default(now())
+  createBy         String?
+  deleteBy         String?
+
+  // Relations
+  phieuDangKy PhieuDangKy @relation(fields: [MaPhieu], references: [MaPhieu])
+
+  @@map("chi_tiet_diem_danh")
+}
+
+// ==========================================
+// TAI_LIEU_TO_CHUC
+// ==========================================
+model TaiLieuToChuc {
+  MaTaiLieu   String  @id
+  TenTaiLieu  String
+  DuongDan    String
+  PhanLoai    String?
+  MaToChuc    String
+  MaNguoiDung String
+  isDelete    Boolean  @default(false)
+  createAt    DateTime @default(now())
+  createBy    String?
+  deleteBy    String?
+
+  // Relations
+  toChuc    ToChuc    @relation(fields: [MaToChuc], references: [MaToChuc])
+  nguoiDung NguoiDung @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+
+  @@map("tai_lieu_to_chuc")
+}
+
+// ==========================================
+// NHAT_KY_HE_THONG
+// ==========================================
+model NhatKyHeThong {
+  MaNhatKy          String   @id
+  HanhDong          String?
+  ThoiGianThucHien  DateTime @default(now())
+  DuLieuCu          String?
+  DuLieuMoi         String?
+  MaNguoiDung       String
+  isDelete          Boolean  @default(false)
+  createAt          DateTime @default(now())
+  createBy          String?
+  deleteBy          String?
+
+  // Relations
+  nguoiDung NguoiDung @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+
+  @@map("nhat_ky_he_thong")
+}
+
+// ==========================================
+// THONG_BAO
+// ==========================================
+model ThongBao {
+  MaThongBao       String   @id
+  TieuDe           String?
+  NoiDung          String?
+  ThoiGianThongBao DateTime @default(now())
+  TrangThai        String?
+  LoaiThongBao     String?
+  MaNguoiDung      String
+  isDelete         Boolean  @default(false)
+  createAt         DateTime @default(now())
+  createBy         String?
+  deleteBy         String?
+
+  // Relations
+  nguoiDung NguoiDung @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+
+  @@map("thong_bao")
+}
+
+// ==========================================
+// RBAC: VAI_TRO
+// ==========================================
+model VaiTro {
+  MaVaiTro        String   @id
+  MaCode          String   @unique
+  TenVaiTro       String
+  MoTa            String?
+  isDelete        Boolean  @default(false)
+  createAt        DateTime @default(now())
+  createBy        String?
+  deleteBy        String?
+
+  // Relations
+  vaiTroQuyen     VaiTroQuyen[]
+  nguoiDungVaiTro NguoiDungVaiTro[]
+
+  @@map("vai_tro")
+}
+
+// ==========================================
+// RBAC: QUYEN
+// ==========================================
+model Quyen {
+  MaQuyen   String   @id
+  MaCode    String   @unique
+  TenQuyen  String
+  MoTa      String?
+  isDelete  Boolean  @default(false)
+  createAt  DateTime @default(now())
+  createBy  String?
+  deleteBy  String?
+
+  // Relations
+  vaiTroQuyen VaiTroQuyen[]
+
+  @@map("quyen")
+}
+
+// ==========================================
+// RBAC: VAI_TRO_QUYEN (Junction N-N)
+// ==========================================
+model VaiTroQuyen {
+  MaVaiTro String
+  MaQuyen  String
+  isDelete Boolean  @default(false)
+  createAt DateTime @default(now())
+  createBy String?
+  deleteBy String?
+
+  // Relations
+  vaiTro VaiTro @relation(fields: [MaVaiTro], references: [MaVaiTro])
+  quyen  Quyen  @relation(fields: [MaQuyen], references: [MaQuyen])
+
+  @@id([MaVaiTro, MaQuyen])
+  @@map("vai_tro_quyen")
+}
+
+// ==========================================
+// RBAC: NGUOI_DUNG_VAI_TRO (Junction N-N)
+// ==========================================
+model NguoiDungVaiTro {
+  MaNguoiDung String
+  MaVaiTro    String
+  isDelete    Boolean  @default(false)
+  createAt    DateTime @default(now())
+  createBy    String?
+  deleteBy    String?
+
+  // Relations
+  nguoiDung NguoiDung @relation(fields: [MaNguoiDung], references: [MaNguoiDung])
+  vaiTro    VaiTro    @relation(fields: [MaVaiTro], references: [MaVaiTro])
+
+  @@id([MaNguoiDung, MaVaiTro])
+  @@map("nguoi_dung_vai_tro")
+}
