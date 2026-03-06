@@ -59,4 +59,22 @@ const sendWelcomeEmail = async ({ to, name }) => {
   });
 };
 
-module.exports = { sendPasswordResetEmail, sendWelcomeEmail };
+const sendNotificationEmail = async ({ to, subject, body }) => {
+  const transporter = createTransporter();
+
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM,
+    to,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>${subject}</h2>
+        <div>${body}</div>
+        <hr/>
+        <small style="color:#999;">Student Activity Portal</small>
+      </div>
+    `,
+  });
+};
+
+module.exports = { sendPasswordResetEmail, sendWelcomeEmail, sendNotificationEmail };

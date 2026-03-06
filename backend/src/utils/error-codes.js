@@ -15,6 +15,14 @@ module.exports = {
   // ─── User ──────────────────────────────────────────────
   USER_NOT_FOUND:         { statusCode: 404, message: "Người dùng không tồn tại" },
 
+  // ─── Notification ─────────────────────────────────────
+  NOTIFICATION_NOT_FOUND:      { statusCode: 404, message: "Thông báo không tồn tại" },
+  NOTIFICATION_SEND_FAILED:    { statusCode: 500, message: "Gửi thông báo thất bại" },
+  NOTIFICATION_NO_RECIPIENTS:  { statusCode: 400, message: "Không có người nhận nào" },
+
+  // ─── AI ───────────────────────────────────────────────
+  AI_SERVICE_UNAVAILABLE:      { statusCode: 503, message: "Dịch vụ AI tạm thời không khả dụng" },
+
   // ─── Common ────────────────────────────────────────────
   FORBIDDEN:              { statusCode: 403, message: "Bạn không có quyền thực hiện thao tác này" },
   VALIDATION_ERROR:       { statusCode: 400, message: "Dữ liệu không hợp lệ" },
