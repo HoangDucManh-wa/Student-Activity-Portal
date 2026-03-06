@@ -5,6 +5,9 @@ const rateLimit = require("express-rate-limit");
 
 const errorMiddleware = require("./middlewares/error.middleware");
 const authRoutes = require("./modules/auth/auth.route");
+const thongBaoRoutes = require("./modules/thong-bao/thong-bao.route");
+const adminRoutes = require("./modules/admin/admin.route");
+const aiRoutes = require("./modules/ai/ai.route");
 
 const app = express();
 
@@ -44,14 +47,16 @@ app.get("/health", (req, res) => {
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 
+app.use("/api/thong-bao", thongBaoRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/ai", aiRoutes);
+
 // TODO: add more module routes here
 // app.use("/api/nguoi-dung", nguoiDungRoutes);
 // app.use("/api/to-chuc", toChucRoutes);
 // app.use("/api/hoat-dong", hoatDongRoutes);
 // app.use("/api/phieu-dang-ky", phieuDangKyRoutes);
 // app.use("/api/dot-tuyen-clb", dotTuyenClbRoutes);
-// app.use("/api/thong-bao", thongBaoRoutes);
-// app.use("/api/admin", adminRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
