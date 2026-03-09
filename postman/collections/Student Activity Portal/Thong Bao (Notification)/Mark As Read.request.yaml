@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl}}/api/thong-bao/{{notificationId}}/read"
+method: PUT
+headers:
+  Authorization: Bearer {{accessToken}}
+order: 6000

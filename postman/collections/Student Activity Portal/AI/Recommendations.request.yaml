@@ -1,0 +1,14 @@
+$kind: http-request
+description: Goi y hoat dong phu hop dua tren lich su va so thich.
+url: "{{baseUrl}}/api/ai/recommend"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "limit": 5
+    }
+order: 2000

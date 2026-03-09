@@ -1,0 +1,7 @@
+$kind: http-request
+description: Thong ke hoat dong theo trang thai va danh muc. Yeu cau ADMIN.
+url: "{{baseUrl}}/api/admin/stats/activities"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+order: 2000

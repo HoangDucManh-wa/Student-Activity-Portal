@@ -1,0 +1,15 @@
+$kind: http-request
+description: Tim kiem hoat dong thong minh bang AI (Gemini).
+url: "{{baseUrl}}/api/ai/search"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "query": "hoat dong the thao",
+      "limit": 10
+    }
+order: 1000

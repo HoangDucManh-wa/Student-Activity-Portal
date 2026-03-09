@@ -1,0 +1,19 @@
+$kind: http-request
+description: "Lay danh sach thong bao cua minh (paginated). Filter:
+  LoaiThongBao, TrangThai."
+url: "{{baseUrl}}/api/thong-bao?page=1&limit=20"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+queryParams:
+  - key: page
+    value: "1"
+  - key: limit
+    value: "20"
+  - key: LoaiThongBao
+    value: HE_THONG
+    disabled: true
+  - key: TrangThai
+    value: CHUA_DOC
+    disabled: true
+order: 3000

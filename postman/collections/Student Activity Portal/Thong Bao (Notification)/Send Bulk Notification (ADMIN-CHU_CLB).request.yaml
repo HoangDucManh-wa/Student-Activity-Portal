@@ -1,0 +1,20 @@
+$kind: http-request
+name: Send Bulk Notification (ADMIN/CHU_CLB)
+description: "Gui thong bao hang loat. Target: TatCa=true (all users), MaToChuc
+  (club members), DanhSachNguoiDung (list IDs). ThoiGianGui for scheduled."
+url: "{{baseUrl}}/api/thong-bao/send-bulk"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "TieuDe": "Thong bao toan truong",
+      "NoiDung": "Noi dung gui cho tat ca",
+      "LoaiThongBao": "HE_THONG",
+      "KenhGui": ["IN_APP", "EMAIL"],
+      "TatCa": true
+    }
+order: 2000

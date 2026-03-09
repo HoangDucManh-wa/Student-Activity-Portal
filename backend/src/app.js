@@ -9,6 +9,8 @@ const thongBaoRoutes = require("./modules/thong-bao/thong-bao.route");
 const adminRoutes = require("./modules/admin/admin.route");
 const aiRoutes = require("./modules/ai/ai.route");
 
+const hoatDongRoutes = require("./modules/hoat-dong/hoat-dong.route");
+
 const app = express();
 
 // ─── Security ─────────────────────────────────────────────────────────────────
@@ -54,7 +56,7 @@ app.use("/api/ai", aiRoutes);
 // TODO: add more module routes here
 // app.use("/api/nguoi-dung", nguoiDungRoutes);
 // app.use("/api/to-chuc", toChucRoutes);
-// app.use("/api/hoat-dong", hoatDongRoutes);
+app.use("/api/hoat-dong", hoatDongRoutes);
 // app.use("/api/phieu-dang-ky", phieuDangKyRoutes);
 // app.use("/api/dot-tuyen-clb", dotTuyenClbRoutes);
 

@@ -1,0 +1,28 @@
+$kind: http-request
+name: Send Notification (ADMIN/CHU_CLB)
+description: "Gui thong bao cho 1 nguoi dung. KenhGui: IN_APP, EMAIL, SMS. Yeu
+  cau role ADMIN hoac CHU_CLB."
+url: "{{baseUrl}}/api/thong-bao/send"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "TieuDe": "Thong bao moi",
+      "NoiDung": "Noi dung thong bao",
+      "MaNguoiDung": "<target-user-id>",
+      "LoaiThongBao": "HE_THONG",
+      "KenhGui": ["IN_APP"]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const res = pm.response.json();
+      if (res.success && res.data && res.data.MaThongBao) {
+        pm.collectionVariables.set('notificationId', res.data.MaThongBao);
+      }
+    language: text/javascript
+order: 1000

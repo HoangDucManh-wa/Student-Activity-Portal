@@ -1,0 +1,7 @@
+$kind: http-request
+description: "Thong ke tong quan: users, activities, clubs, registrations. Yeu cau ADMIN."
+url: "{{baseUrl}}/api/admin/stats/overview"
+method: GET
+headers:
+  Authorization: Bearer {{accessToken}}
+order: 1000

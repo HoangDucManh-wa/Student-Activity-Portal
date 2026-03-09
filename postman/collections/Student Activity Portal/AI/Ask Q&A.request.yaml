@@ -1,0 +1,14 @@
+$kind: http-request
+description: Hoi dap ve hoat dong, CLB bang AI. Tra loi tieng Viet.
+url: "{{baseUrl}}/api/ai/ask"
+method: POST
+headers:
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "question": "Co hoat dong nao sap dien ra khong?"
+    }
+order: 3000

@@ -1,0 +1,8 @@
+$kind: collection
+description: "API collection cho Student Activity Portal backend. Base URL:
+  http://localhost:3000"
+variables:
+  baseUrl: http://localhost:3000
+  accessToken: ""
+  refreshToken: ""
+  notificationId: ""
