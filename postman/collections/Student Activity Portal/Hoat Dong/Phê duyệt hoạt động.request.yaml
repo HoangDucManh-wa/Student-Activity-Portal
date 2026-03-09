@@ -1,0 +1,16 @@
+$kind: http-request
+name: Phê duyệt hoạt động
+url: http://localhost:3000/api/hoat-dong/HD_DAC62205D40D24F4CCE2/approve
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \  \"TrangThaiPheDuyet\": \"DA_PHE_DUYET\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ik5EXzYyRjk0MkYzQkNDM0QyQjIwNkZCIiwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzczMDY0Mjk0LCJleHAiOjE3NzM2NjkwOTR9.1AGkJgreoLFE4doB9zg4OmRe0Q-rmdxQFZx0_VcxMIw
+order: 3269574223083853

@@ -1,5 +1,5 @@
 $kind: http-request
 name: Lấy danh sách hoạt động
-url: ""
+url: http://localhost:3000/api/hoat-dong/HD_DAC62205D40D24F4CCE2
 method: GET
 order: 1772997580464

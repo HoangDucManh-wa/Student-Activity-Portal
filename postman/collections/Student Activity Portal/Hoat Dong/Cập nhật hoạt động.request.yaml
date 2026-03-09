@@ -1,0 +1,22 @@
+$kind: http-request
+name: Cập nhật hoạt động
+url: http://localhost:3000/api/hoat-dong/HD_DAC62205D40D24F4CCE2
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \  \"TenHoatDong\": \"Hội thảo hướng nghiệp 2025 - ĐÃ CẬP NHẬT2\",\r
+
+    \  \"DiaDiem\": \"Phòng họp ảo Zoom\",\r
+
+    \  \"SoLuongNguoiToiDa\": 500,\r
+
+    \  \"MoTa\": \"Mô tả mới sau khi cập nhật thông tin sự kiện.\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ik5EXzYyRjk0MkYzQkNDM0QyQjIwNkZCIiwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzczMDY0Mjk0LCJleHAiOjE3NzM2NjkwOTR9.1AGkJgreoLFE4doB9zg4OmRe0Q-rmdxQFZx0_VcxMIw
+order: 401521537584819

@@ -1,5 +1,34 @@
 $kind: http-request
 name: Tạo mới hoạt động
-url: ""
-method: GET
+url: http://localhost:3000/api/hoat-dong
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"TenHoatDong\": \"Hội thảo hướng nghiệp 2025\",\r
+
+    \  \"MaToChuc\": \"TC_001\",\r
+
+    \  \"MaDanhMuc\": \"DM_001\",\r
+
+    \  \"ThoiGianBatDau\": \"2025-10-10T08:00:00Z\",\r
+
+    \  \"ThoiGianKetThuc\": \"2025-10-10T11:00:00Z\",\r
+
+    \  \"HanDangKy\": \"2025-10-09T23:59:59Z\",\r
+
+    \  \"DiaDiem\": \"Hội trường C1\",\r
+
+    \  \"SoLuongNguoiToiDa\": 200,\r
+
+    \  \"DangKyNhom\": false,\r
+
+    \  \"MoTa\": \"Giúp sinh viên định hướng nghề nghiệp\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ik5EXzYyRjk0MkYzQkNDM0QyQjIwNkZCIiwicm9sZSI6IkFETUlOIiwiaWF0IjoxNzczMDY0Mjk0LCJleHAiOjE3NzM2NjkwOTR9.1AGkJgreoLFE4doB9zg4OmRe0Q-rmdxQFZx0_VcxMIw
 order: 117381526772882
