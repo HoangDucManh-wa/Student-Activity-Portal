@@ -297,8 +297,6 @@ CREATE TABLE team_members (
 
 CREATE TABLE club_applications (
     "applicationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-
-    "answers" TEXT,
     "submittedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "interviewTime" TIMESTAMP,
     "result" VARCHAR(50)
