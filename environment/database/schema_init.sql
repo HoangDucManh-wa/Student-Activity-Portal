@@ -4,8 +4,7 @@
 -- ==========================================
 
 DROP TABLE IF EXISTS user_roles CASCADE;
-DROP TABLE IF EXISTS role_permissions CASCADE;
-DROP TABLE IF EXISTS permissions CASCADE;
+
 DROP TABLE IF EXISTS roles CASCADE;
 
 DROP TABLE IF EXISTS notifications CASCADE;
@@ -205,14 +204,14 @@ CREATE TABLE activity_checkins (
     "activityId" INT NOT NULL
         REFERENCES activities("activityId") ON DELETE CASCADE,
 
-    "checkInStart" TIMESTAMP,
-    "checkInEnd" TIMESTAMP,
+    "checkInTime" TIMESTAMP,
+    "checkOutTime" TIMESTAMP,
 
     CONSTRAINT check_checkin_time
         CHECK (
-    "checkInStart" IS NULL
-    OR "checkInEnd" IS NULL
-    OR "checkInEnd" > "checkInStart"
+    "checkInTime" IS NULL
+    OR "checkOutTime" IS NULL
+    OR "checkInTime" > "checkOutTime"
 )
 );
 CREATE TABLE activity_team_rules (
