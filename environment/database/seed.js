@@ -91,7 +91,7 @@ async function main() {
   await prisma.organizationMember.upsert({
     where:  { userId_organizationId: { userId: users["organization_leader"].userId, organizationId: org.organizationId } },
     update: {},
-    create: { userId: users["organization_leader"].userId, organizationId: org.organizationId, role: "leader" },
+    create: { userId: users["organization_leader"].userId, organizationId: org.organizationId, role: "president" },
   });
 
   await prisma.organizationMember.upsert({

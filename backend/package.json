@@ -9,7 +9,8 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "cross-env NODE_PATH=./node_modules node ../environment/database/seed.js",
+    "test:api": "cross-env NODE_PATH=./node_modules node ../environment/database/test-api.js"
   },
   "author": "",
   "license": "ISC",
