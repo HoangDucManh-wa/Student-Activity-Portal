@@ -27,7 +27,7 @@ const getActivityStats = async () => {
       _count: { activityId: true },
     }),
     prisma.activity.groupBy({
-      by: ["type"],
+      by: ["activityType"],
       where: { isDeleted: false },
       _count: { activityId: true },
     }),
@@ -35,7 +35,7 @@ const getActivityStats = async () => {
 
   return {
     byStatus: byStatus.map((s) => ({ status: s.activityStatus, count: s._count.activityId })),
-    byType: byType.map((t) => ({ type: t.type, count: t._count.activityId })),
+    byType: byType.map((t) => ({ type: t.activityType, count: t._count.activityId })),
   };
 };
 
