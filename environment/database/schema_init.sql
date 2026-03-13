@@ -213,10 +213,11 @@ CREATE TABLE activity_checkins (
 
     CONSTRAINT check_checkin_time
         CHECK (
-            "checkInTime" IS NULL
-            OR "checkOutTime" IS NULL
-            OR "checkInTime" < "checkOutTime"
-        )
+
+    "checkInTime" IS NULL
+    OR "checkOutTime" IS NULL
+    OR "checkInTime" < "checkOutTime"
+)
 );
 
 CREATE TABLE activity_team_rules (
@@ -237,8 +238,8 @@ CREATE TABLE activity_team_rules (
 -- REGISTRATIONS
 CREATE TABLE registrations (
     "registrationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "teamName" VARCHAR(255),
-    "isLookingForTeam" BOOLEAN,
+    "teamName" VARCHAR(255) NOT NULL,
+     "isLookingForTeam" BOOLEAN,
 
     "status" VARCHAR(50) DEFAULT 'pending'
         CHECK ("status" IN ('pending','approved','rejected','cancelled')),
