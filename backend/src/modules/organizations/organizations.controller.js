@@ -2,6 +2,7 @@ const {
   createOrganizationService,
   getOrganizationsService,
   getOrganizationByIdService,
+  getOrganizationsServiceByName,
   updateOrganizationService,
   deleteOrganizationService,
 } = require("./organizations.service");
@@ -63,7 +64,25 @@ const getOrganizationByIdController = async (req, res, next) => {
     next(error);
   }
 };
+//Get Organization by name
+const getOrganizationsByNameController = async (req, res) => {
+  try {
+    const { name } = req.query;
 
+    const organizations = await getOrganizationsServiceByName(name);
+
+    return res.status(200).json({
+      success: true,
+      data: organizations,
+    });
+  } catch (error) {
+    console.log(req.query);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /**
  * ======================================
  * Update Organization
@@ -97,11 +116,6 @@ const deleteOrganizationController = async (req, res, next) => {
     const { organizationId } = req.params;
 
     await deleteOrganizationService(Number(organizationId));
-
-    res.json({
-      success: true,
-      message: "Organization deleted successfully",
-    });
   } catch (error) {
     next(error);
   }
@@ -111,6 +125,7 @@ module.exports = {
   createOrganizationController,
   getOrganizationsController,
   getOrganizationByIdController,
+  getOrganizationsByNameController,
   updateOrganizationController,
   deleteOrganizationController,
 };

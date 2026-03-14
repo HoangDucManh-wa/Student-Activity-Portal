@@ -5,7 +5,26 @@ const prisma = require("../../config/prisma");
  * Create Organization
  * ======================================
  */
-const createOrganizationService = async (data) => {
+
+const createOrganizationService = async (data, user) => {
+  //chỉ admin mới có thể tạo organization
+  // if (!user || user.role !== "admin") {
+  //   throw new Error("Only admin can create organization");
+  // }
+
+  // kiểm tra trùng tên và chuẩn hóa tên
+  const name = data.organizationName.trim().toLowerCase();
+  const existingOrg = await prisma.organization.findFirst({
+    where: {
+      organizationName: data.organizationName,
+      isDeleted: false,
+    },
+  });
+
+  if (existingOrg) {
+    throw new Error("Organization name already exists");
+  }
+
   return prisma.organization.create({
     data: {
       organizationName: data.organizationName,
@@ -19,10 +38,13 @@ const createOrganizationService = async (data) => {
 
 /**
  * ======================================
- * Get Organizations
+ * Get Organizations, mặc định lấy ra 10 organizations mới nhất
  * ======================================
  */
-const getOrganizationsService = async () => {
+const getOrganizationsService = async (user) => {
+  // if (!user || user.role !== "admin") {
+  //   throw new Error("Only admin can get organization");
+  // }
   return prisma.organization.findMany({
     where: {
       isDeleted: false,
@@ -30,6 +52,7 @@ const getOrganizationsService = async () => {
     orderBy: {
       createdAt: "desc",
     },
+    take: 10, // chỉ lấy 10 bản ghi
   });
 };
 
@@ -38,15 +61,46 @@ const getOrganizationsService = async () => {
  * Get Organization By ID
  * ======================================
  */
-const getOrganizationByIdService = async (organizationId) => {
+const getOrganizationByIdService = async (organizationId, user) => {
+  // if (!user || user.role !== "admin") {
+  //   throw new Error("Only admin can get organization");
+  // }
+
   return prisma.organization.findFirst({
     where: {
-      organizationId,
+      organizationId: Number(organizationId),
       isDeleted: false,
     },
   });
 };
+//GET theo name
 
+const getOrganizationsServiceByName = async (query) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    isDeleted: false,
+  };
+
+  if (query.name) {
+    where.organizationName = {
+      contains: query.name,
+      mode: "insensitive", // không phân biệt hoa thường
+    };
+  }
+
+  return prisma.organization.findMany({
+    where,
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip,
+    take: limit,
+  });
+};
 /**
  * ======================================
  * Update Organization
@@ -89,6 +143,7 @@ module.exports = {
   createOrganizationService,
   getOrganizationsService,
   getOrganizationByIdService,
+  getOrganizationsServiceByName,
   updateOrganizationService,
   deleteOrganizationService,
 };

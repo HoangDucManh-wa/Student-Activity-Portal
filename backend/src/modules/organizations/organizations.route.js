@@ -4,6 +4,7 @@ const {
   createOrganizationController,
   getOrganizationsController,
   getOrganizationByIdController,
+  getOrganizationsByNameController,
   updateOrganizationController,
   deleteOrganizationController,
 } = require("./organizations.controller");
@@ -21,6 +22,7 @@ router.post("/", createOrganizationController);
 router.get("/", getOrganizationsController);
 
 router.get("/:organizationId", getOrganizationByIdController);
+// router.get("/:organizationName", getOrganizationsByNameController);
 
 router.put("/:organizationId", updateOrganizationController);
 
