@@ -8,7 +8,8 @@ const authRoutes = require("./modules/auth/auth.route");
 const notificationsRoutes = require("./modules/notifications/notifications.route");
 const adminRoutes = require("./modules/admin/admin.route");
 const aiRoutes = require("./modules/ai/ai.route");
-
+const activityRoute = require("./modules/activities/activities.route");
+const organizationRoute = require("./modules/organizations/organizations.route");
 const app = express();
 
 // ─── Security ─────────────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || "*",
     credentials: true,
-  })
+  }),
 );
 
 app.use(
@@ -27,7 +28,7 @@ app.use(
     windowMs: 15 * 60 * 1000,
     max: 100,
     message: { success: false, error: "Quá nhiều yêu cầu, thử lại sau" },
-  })
+  }),
 );
 
 // ─── Body parser ──────────────────────────────────────────────────────────────
@@ -41,7 +42,11 @@ if (process.env.NODE_ENV === "development") {
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
-  res.json({ success: true, message: "OK", timestamp: new Date().toISOString() });
+  res.json({
+    success: true,
+    message: "OK",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
@@ -50,8 +55,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ai", aiRoutes);
-
-// TODO: add more module routes here
+app.use("/api/activities", activityRoute);
+app.use("/api/organizations", organizationRoute); // TODO: add more module routes here
 // app.use("/api/nguoi-dung", nguoiDungRoutes);
 // app.use("/api/to-chuc", toChucRoutes);
 // app.use("/api/hoat-dong", hoatDongRoutes);
