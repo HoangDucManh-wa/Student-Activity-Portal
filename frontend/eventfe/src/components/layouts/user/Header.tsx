@@ -3,19 +3,20 @@ import { ChevronDown, Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { UserMenu } from "../avatar";
+import { navigationConfig } from "@/configs/navigation";
 
-export async function Header() {
+export async function Header({ isClub = false }: { isClub?: boolean }) {
   return (
     <header className="bg-[#05566B] flex items-center justify-between sticky top-0 w-full z-[999]">
-      <Link href='/' className="ml-[180px] mr-[50px]">
+      <Link href={isClub ? "/organization" : "/"} className="ml-[180px] mr-[50px]">
         <Image width={59} height={59} alt="Logo" src="/logoheader.png" />
       </Link>
       <nav className="ml-4 flex items-center gap-[40px] justify-center">
-        <Link href="/" className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors block ">
+        <Link href={isClub ? "/organization" : "/"} className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors block ">
           Trang chủ
         </Link>
         <div className="relative group">
-          <Link href="/event" className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors flex items-center gap-2 cursor-pointer  justify-between">
+          <Link href={isClub ? "/organization/event" : "/event"} className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors flex items-center gap-2 cursor-pointer  justify-between">
             Sự Kiện
             <ChevronDown className="group-hover:rotate-180 transition-transform duration-200 inline-block" />
           </Link>
@@ -28,8 +29,13 @@ export async function Header() {
             </Link>
           </div>
         </div>
-        <Link href='club' className='text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors'>Câu lạc bộ</Link>
-        <Link href='contact' className='text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors'>Liên hệ</Link>
+        <Link
+          href={isClub ? "/organization/club" : "/club"}
+          className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors"
+        >
+          {isClub ? "Quản lý" : "Câu lạc bộ"}
+        </Link>
+        <Link href={isClub ? "/organization/contact" : "/contact"} className='text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors'>Liên hệ</Link>
       </nav>
       <div className="flex gap-[40px] pr-[30px] items-center">
         <div className="relative bg-white rounded-[50px]">
