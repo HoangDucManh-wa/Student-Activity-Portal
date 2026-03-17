@@ -1,38 +1,49 @@
 const express = require("express");
 
 const {
-  createActivityController,
-  getActivityByIdController,
-  getActivitiesController,
-  updateActivityController,
-  deleteActivityController,
-  searchActivitiesController,
-} = require("./activities.controller");
+  createActivityCategoryController,
+  getActivityCategoriesController,
+  getActivityCategoriesByNameController,
+  getActivityCategoryByIdController,
+  updateActivityCategoryController,
+  deleteActivityCategoryController,
+} = require("./controllers/activitiesCategory.controller");
+
+const { protect } = require("../../middlewares/auth.middleware");
+const { authorize } = require("../../middlewares/role.middleware");
 
 const router = express.Router();
 
-/**
- * ==========================================
- * Activities Routes
- * ==========================================
- */
+// ============================
+// Activity Category Routes
+// ============================
 
-// Get activities (homepage)
-router.get("/", getActivitiesController);
+// 🔹 Create category (chỉ admin)
+router.post("/", protect, authorize("admin"), createActivityCategoryController);
 
-// Search activities
-router.get("/search", searchActivitiesController);
+// 🔹 Get all categories (có limit)
+router.get("/", getActivityCategoriesController);
 
-// Get activity by ID
-router.get("/:activityId", getActivityByIdController);
+// 🔹 Search by name
+router.get("/search", getActivityCategoriesByNameController);
 
-// Create activity
-router.post("/", createActivityController);
+// 🔹 Get by ID
+router.get("/:categoryId", protect, getActivityCategoryByIdController);
 
-// Update activity
-router.put("/:activityId", updateActivityController);
+// 🔹 Update category
+router.put(
+  "/:categoryId",
+  protect,
+  authorize("admin"),
+  updateActivityCategoryController,
+);
 
-// Delete activity
-router.delete("/:activityId", deleteActivityController);
+// 🔹 Delete category (soft delete)
+router.delete(
+  "/:categoryId",
+  protect,
+  authorize("admin"),
+  deleteActivityCategoryController,
+);
 
 module.exports = router;
