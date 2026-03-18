@@ -23,7 +23,7 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || "*",
     credentials: true,
-  })
+  }),
 );
 
 app.use(
@@ -32,7 +32,7 @@ app.use(
     windowMs: 15 * 60 * 1000,
     max: 100,
     message: { success: false, error: "Quá nhiều yêu cầu, thử lại sau" },
-  })
+  }),
 );
 
 // ─── Body parser ──────────────────────────────────────────────────────────────
@@ -46,7 +46,11 @@ if (process.env.NODE_ENV === "development") {
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => {
-  res.json({ success: true, message: "OK", timestamp: new Date().toISOString() });
+  res.json({
+    success: true,
+    message: "OK",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────

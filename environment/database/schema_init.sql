@@ -232,6 +232,7 @@ CREATE TABLE activity_team_rules (
         "maxTeamMembers" IS NULL
         OR "minTeamMembers" IS NULL
         OR "maxTeamMembers" >= "minTeamMembers"
+        
     )
 );
 
