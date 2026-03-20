@@ -41,25 +41,29 @@ export default function EditFormPage() {
   }
 
   const initialData: CreateFormPayload = {
-    TenForm: form.TenForm,
-    MoTa: form.MoTa,
-    CauHinhForm: form.CauHinhForm,
-    MaHoatDong: form.MaHoatDong,
-    MaDot: form.MaDot,
-    DanhSachPhan: form.phanForm.map((section) => ({
-      TieuDe: section.TieuDe,
-      MoTa: section.MoTa,
-      ThuTu: section.ThuTu,
-      DieuKienHienThi: section.DieuKienHienThi,
-      DanhSachCauHoi: section.cauHoi.map((q) => ({
-        NoiDung: q.NoiDung,
-        MoTa: q.MoTa,
-        LoaiCauHoi: q.LoaiCauHoi,
-        ThuTu: q.ThuTu,
-        BatBuoc: q.BatBuoc,
-        TuyChon: q.TuyChon,
-        QuyTacXacThuc: q.QuyTacXacThuc,
-        DieuKienHienThi: q.DieuKienHienThi,
+    title: form.title,
+    description: form.description,
+    activityId: form.activityId,
+    organizationId: form.organizationId,
+    sections: form.sections.map((section) => ({
+      title: section.title,
+      description: section.description,
+      order: section.order,
+      navigationType: section.navigationType,
+      questions: section.questions.map((q) => ({
+        title: q.title,
+        description: q.description,
+        type: q.type,
+        order: q.order,
+        required: q.required,
+        options: q.options.map((o) => ({
+          label: o.label,
+          order: o.order,
+          isOther: o.isOther,
+        })),
+        gridRows: q.gridRows.map((r) => ({ label: r.label, order: r.order })),
+        validationRules: q.validationRules ?? undefined,
+        displayCondition: q.displayCondition ?? undefined,
       })),
     })),
   }

@@ -2,6 +2,7 @@ const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
 const { APPLICATION_RESULT, ORG_MEMBER_ROLE } = require("../../utils/constants");
 const { isAdminOrOrgLeader } = require("../../utils/permissions");
+const { resolveFields } = require("../../utils/s3-helpers");
 
 // ─── Create application ─────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ const ROLE_CODE = {
 
 const ACTIVITY_STATUS = {
   DRAFT: "draft",
+  PENDING_REVIEW: "pending_review",
   PUBLISHED: "published",
   RUNNING: "running",
   FINISHED: "finished",
@@ -91,19 +92,75 @@ const REDIS_PREFIX = {
 const RESET_PASSWORD_TTL = 15 * 60;
 
 const NOTIFICATION_QUEUE_NAME = "notification-queue";
+const REGISTRATION_QUEUE_NAME = "registration-queue";
 
 // Valid activity status transitions
 const VALID_STATUS_TRANSITIONS = {
-  [ACTIVITY_STATUS.DRAFT]: [ACTIVITY_STATUS.PUBLISHED, ACTIVITY_STATUS.CANCELLED],
+  [ACTIVITY_STATUS.DRAFT]: [ACTIVITY_STATUS.PENDING_REVIEW, ACTIVITY_STATUS.CANCELLED],
+  [ACTIVITY_STATUS.PENDING_REVIEW]: [ACTIVITY_STATUS.PUBLISHED, ACTIVITY_STATUS.DRAFT, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.PUBLISHED]: [ACTIVITY_STATUS.RUNNING, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.RUNNING]: [ACTIVITY_STATUS.FINISHED, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.FINISHED]: [],
   [ACTIVITY_STATUS.CANCELLED]: [],
 };
 
+const FORM_STATUS = {
+  DRAFT: "draft",
+  OPEN: "open",
+  CLOSED: "closed",
+};
+
+const RESPONSE_STATUS = {
+  SUBMITTED: "submitted",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+};
+
+const QUESTION_TYPE = {
+  SHORT_TEXT: "short_text",
+  PARAGRAPH: "paragraph",
+  MULTIPLE_CHOICE: "multiple_choice",
+  CHECKBOXES: "checkboxes",
+  DROPDOWN: "dropdown",
+  FILE_UPLOAD: "file_upload",
+  DATE: "date",
+  TIME: "time",
+  LINEAR_SCALE: "linear_scale",
+  MULTIPLE_CHOICE_GRID: "multiple_choice_grid",
+  CHECKBOX_GRID: "checkbox_grid",
+};
+
+const NAVIGATION_TYPE = {
+  NEXT: "next",
+  SECTION: "section",
+  SUBMIT: "submit",
+};
+
+const CONFIG_KEYS = {
+  ACTIVITY_REQUIRE_APPROVAL: "activity.require_approval",
+  ACTIVITY_MAX_PER_ORG_MONTH: "activity.max_per_org_per_month",
+  REGISTRATION_AUTO_APPROVE: "registration.auto_approve",
+  REGISTRATION_ALLOW_CANCEL: "registration.allow_cancel_after_approve",
+  ORG_REQUIRE_APPROVAL: "organization.require_approval_for_new",
+  SYSTEM_MAINTENANCE: "system.maintenance_mode",
+};
+
+const CONFIG_DEFAULTS = {
+  [CONFIG_KEYS.ACTIVITY_REQUIRE_APPROVAL]: { enabled: true },
+  [CONFIG_KEYS.ACTIVITY_MAX_PER_ORG_MONTH]: { value: 0 },
+  [CONFIG_KEYS.REGISTRATION_AUTO_APPROVE]: { enabled: false },
+  [CONFIG_KEYS.REGISTRATION_ALLOW_CANCEL]: { enabled: true },
+  [CONFIG_KEYS.ORG_REQUIRE_APPROVAL]: { enabled: false },
+  [CONFIG_KEYS.SYSTEM_MAINTENANCE]: { enabled: false },
+};
+
 module.exports = {
   USER_STATUS,
   ROLE_CODE,
+  FORM_STATUS,
+  RESPONSE_STATUS,
+  QUESTION_TYPE,
+  NAVIGATION_TYPE,
   ACTIVITY_STATUS,
   ACTIVITY_TYPE,
   TEAM_MODE,
@@ -118,5 +175,8 @@ module.exports = {
   REDIS_PREFIX,
   RESET_PASSWORD_TTL,
   NOTIFICATION_QUEUE_NAME,
+  REGISTRATION_QUEUE_NAME,
   VALID_STATUS_TRANSITIONS,
+  CONFIG_KEYS,
+  CONFIG_DEFAULTS,
 };

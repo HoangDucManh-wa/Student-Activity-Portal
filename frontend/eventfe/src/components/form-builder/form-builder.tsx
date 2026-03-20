@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -28,57 +28,118 @@ import {
   IconGripVertical,
   IconTrash,
   IconPlus,
-  IconCopy,
 } from "@tabler/icons-react"
 import type {
   CreateFormPayload,
-  CreatePhanFormPayload,
-  CreateCauHoiPayload,
-  LoaiCauHoi,
+  CreateSectionPayload,
+  CreateQuestionPayload,
+  QuestionType,
 } from "@/types/form/form.types"
 
-const QUESTION_TYPES: { value: LoaiCauHoi; label: string }[] = [
-  { value: "TEXT", label: "Van ban ngan" },
-  { value: "TEXTAREA", label: "Van ban dai" },
-  { value: "RADIO", label: "Trac nghiem (1 dap an)" },
-  { value: "CHECKBOX", label: "Trac nghiem (nhieu dap an)" },
-  { value: "SELECT", label: "Dropdown" },
-  { value: "NUMBER", label: "So" },
-  { value: "DATE", label: "Ngay thang" },
-  { value: "RATING", label: "Danh gia sao" },
-  { value: "FILE", label: "Tai tep" },
+// ─── Types that need at least 1 option ──────────────────────────────────────
+const CHOICE_TYPES: QuestionType[] = ["multiple_choice", "checkboxes", "dropdown"]
+
+const QUESTION_TYPE_LABELS: { value: QuestionType; label: string }[] = [
+  { value: "short_text", label: "Văn bản ngắn" },
+  { value: "paragraph", label: "Văn bản dài" },
+  { value: "multiple_choice", label: "Trắc nghiệm (1 đáp án)" },
+  { value: "checkboxes", label: "Trắc nghiệm (nhiều đáp án)" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "linear_scale", label: "Đánh giá / thang điểm" },
+  { value: "date", label: "Ngày tháng" },
+  { value: "file_upload", label: "Tải tệp" },
 ]
 
-function newQuestion(thuTu: number): CreateCauHoiPayload {
-  return {
-    NoiDung: "",
-    LoaiCauHoi: "TEXT",
-    ThuTu: thuTu,
-    BatBuoc: false,
-  }
+// ─── Validation ──────────────────────────────────────────────────────────────
+
+interface ValidationErrors {
+  title?: string
+  sections?: Record<number, {
+    title?: string
+    questions?: Record<number, { title?: string; options?: string }>
+  }>
 }
 
-function newSection(thuTu: number): CreatePhanFormPayload {
-  return {
-    TieuDe: `Phan ${thuTu + 1}`,
-    ThuTu: thuTu,
-    DanhSachCauHoi: [newQuestion(0)],
+function validateForm(
+  title: string,
+  sections: CreateSectionPayload[]
+): ValidationErrors {
+  const errors: ValidationErrors = {}
+
+  if (!title.trim()) {
+    errors.title = "Tên form không được để trống"
   }
+
+  const sectionErrors: ValidationErrors["sections"] = {}
+
+  sections.forEach((section, sIdx) => {
+    const sErr: { title?: string; questions?: Record<number, { title?: string; options?: string }> } = {}
+
+    if (!section.title.trim()) {
+      sErr.title = "Tiêu đề phần không được để trống"
+    }
+
+    const qErrors: Record<number, { title?: string; options?: string }> = {}
+    ;(section.questions ?? []).forEach((q, qIdx) => {
+      const qErr: { title?: string; options?: string } = {}
+
+      if (!q.title.trim()) {
+        qErr.title = "Nội dung câu hỏi không được để trống"
+      }
+
+      if (CHOICE_TYPES.includes(q.type)) {
+        const validOptions = (q.options ?? []).filter((o) => o.label.trim())
+        if (validOptions.length === 0) {
+          qErr.options = "Cần ít nhất 1 lựa chọn"
+        }
+      }
+
+      if (Object.keys(qErr).length > 0) {
+        qErrors[qIdx] = qErr
+      }
+    })
+
+    if (Object.keys(qErrors).length > 0) {
+      sErr.questions = qErrors
+    }
+
+    if (Object.keys(sErr).length > 0) {
+      sectionErrors[sIdx] = sErr
+    }
+  })
+
+  if (Object.keys(sectionErrors).length > 0) {
+    errors.sections = sectionErrors
+  }
+
+  return errors
 }
 
-// ─── Sortable Question ──────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function newQuestion(order: number): CreateQuestionPayload {
+  return { title: "", type: "short_text", order, required: false, options: [] }
+}
+
+function newSection(order: number): CreateSectionPayload {
+  return { title: `Phần ${order + 1}`, order, questions: [newQuestion(0)] }
+}
+
+// ─── Sortable Question ────────────────────────────────────────────────────────
 
 function SortableQuestion({
   question,
   index,
   sectionIndex,
+  errors,
   onUpdate,
   onRemove,
 }: {
-  question: CreateCauHoiPayload
+  question: CreateQuestionPayload
   index: number
   sectionIndex: number
-  onUpdate: (q: CreateCauHoiPayload) => void
+  errors?: { title?: string; options?: string }
+  onUpdate: (q: CreateQuestionPayload) => void
   onRemove: () => void
 }) {
   const id = `s${sectionIndex}-q${index}`
@@ -90,7 +151,7 @@ function SortableQuestion({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const hasOptions = ["RADIO", "CHECKBOX", "SELECT"].includes(question.LoaiCauHoi)
+  const isChoiceType = CHOICE_TYPES.includes(question.type)
 
   return (
     <div ref={setNodeRef} style={style} className="border rounded-lg p-4 bg-white space-y-3">
@@ -99,23 +160,32 @@ function SortableQuestion({
           <IconGripVertical className="size-4" />
         </button>
 
-        <Input
-          value={question.NoiDung}
-          onChange={(e) => onUpdate({ ...question, NoiDung: e.target.value })}
-          placeholder="Nhap cau hoi..."
-          className="flex-1 font-medium"
-        />
+        <div className="flex-1 space-y-1">
+          <Input
+            value={question.title}
+            onChange={(e) => onUpdate({ ...question, title: e.target.value })}
+            placeholder="Nhập câu hỏi..."
+            className={`font-medium ${errors?.title ? "border-red-500" : ""}`}
+          />
+          {errors?.title && (
+            <p className="text-xs text-red-500">{errors.title}</p>
+          )}
+        </div>
 
         <Select
-          value={question.LoaiCauHoi}
-          onValueChange={(v) => onUpdate({ ...question, LoaiCauHoi: v as LoaiCauHoi })}
+          value={question.type}
+          onValueChange={(v) =>
+            onUpdate({ ...question, type: v as QuestionType, options: [] })
+          }
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {QUESTION_TYPES.map((t) => (
-              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            {QUESTION_TYPE_LABELS.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -128,33 +198,33 @@ function SortableQuestion({
       <div className="flex items-center gap-4 text-sm">
         <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
-            checked={question.BatBuoc}
-            onCheckedChange={(c) => onUpdate({ ...question, BatBuoc: !!c })}
+            checked={question.required}
+            onCheckedChange={(c) => onUpdate({ ...question, required: !!c })}
           />
-          <span>Bat buoc</span>
+          <span>Bắt buộc</span>
         </label>
       </div>
 
-      {hasOptions && (
+      {isChoiceType && (
         <div className="space-y-2 pl-6">
-          <p className="text-xs font-medium text-muted-foreground">Tuy chon:</p>
-          {(question.TuyChon || [""]).map((opt, oi) => (
+          <p className="text-xs font-medium text-muted-foreground">Tùy chọn:</p>
+          {(question.options ?? [{ label: "" }]).map((opt, oi) => (
             <div key={oi} className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground w-5">{oi + 1}.</span>
               <Input
-                value={opt}
+                value={opt.label}
                 onChange={(e) => {
-                  const next = [...(question.TuyChon || [""])]
-                  next[oi] = e.target.value
-                  onUpdate({ ...question, TuyChon: next })
+                  const next = [...(question.options ?? [{ label: "" }])]
+                  next[oi] = { ...next[oi], label: e.target.value }
+                  onUpdate({ ...question, options: next })
                 }}
-                placeholder={`Tuy chon ${oi + 1}`}
+                placeholder={`Tùy chọn ${oi + 1}`}
                 className="flex-1 h-8 text-sm"
               />
               <button
                 onClick={() => {
-                  const next = (question.TuyChon || [""]).filter((_, i) => i !== oi)
-                  onUpdate({ ...question, TuyChon: next.length > 0 ? next : [""] })
+                  const next = (question.options ?? []).filter((_, i) => i !== oi)
+                  onUpdate({ ...question, options: next.length > 0 ? next : [] })
                 }}
                 className="text-red-400 hover:text-red-600"
               >
@@ -162,13 +232,21 @@ function SortableQuestion({
               </button>
             </div>
           ))}
+          {errors?.options && (
+            <p className="text-xs text-red-500">{errors.options}</p>
+          )}
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onUpdate({ ...question, TuyChon: [...(question.TuyChon || [""]), ""] })}
+            onClick={() =>
+              onUpdate({
+                ...question,
+                options: [...(question.options ?? []), { label: "", order: (question.options ?? []).length }],
+              })
+            }
           >
-            <IconPlus className="size-3 mr-1" /> Them tuy chon
+            <IconPlus className="size-3 mr-1" /> Thêm tùy chọn
           </Button>
         </div>
       )}
@@ -176,7 +254,7 @@ function SortableQuestion({
   )
 }
 
-// ─── Main Form Builder ──────────────────────────────────────────────────────
+// ─── Main FormBuilder ─────────────────────────────────────────────────────────
 
 interface FormBuilderProps {
   initialData?: CreateFormPayload
@@ -185,11 +263,12 @@ interface FormBuilderProps {
 }
 
 export function FormBuilder({ initialData, onSave, isSaving }: FormBuilderProps) {
-  const [tenForm, setTenForm] = React.useState(initialData?.TenForm || "")
-  const [moTa, setMoTa] = React.useState(initialData?.MoTa || "")
-  const [sections, setSections] = React.useState<CreatePhanFormPayload[]>(
-    initialData?.DanhSachPhan || [newSection(0)]
+  const [title, setTitle] = React.useState(initialData?.title ?? "")
+  const [description, setDescription] = React.useState(initialData?.description ?? "")
+  const [sections, setSections] = React.useState<CreateSectionPayload[]>(
+    initialData?.sections ?? [newSection(0)]
   )
+  const [errors, setErrors] = React.useState<ValidationErrors>({})
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -203,69 +282,79 @@ export function FormBuilder({ initialData, onSave, isSaving }: FormBuilderProps)
     setSections((prev) => {
       const next = [...prev]
       const section = { ...next[sectionIndex] }
-      const questions = [...section.DanhSachCauHoi]
-
+      const questions = [...(section.questions ?? [])]
       const oldIdx = questions.findIndex((_, i) => `s${sectionIndex}-q${i}` === active.id)
       const newIdx = questions.findIndex((_, i) => `s${sectionIndex}-q${i}` === over.id)
-
-      section.DanhSachCauHoi = arrayMove(questions, oldIdx, newIdx).map((q, i) => ({
-        ...q,
-        ThuTu: i,
-      }))
+      section.questions = arrayMove(questions, oldIdx, newIdx).map((q, i) => ({ ...q, order: i }))
       next[sectionIndex] = section
       return next
     })
   }
 
-  const addSection = () => {
+  const addSection = () =>
     setSections((prev) => [...prev, newSection(prev.length)])
-  }
 
-  const removeSection = (idx: number) => {
-    setSections((prev) => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, ThuTu: i })))
-  }
+  const removeSection = (idx: number) =>
+    setSections((prev) =>
+      prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i }))
+    )
 
-  const updateSection = (idx: number, updates: Partial<CreatePhanFormPayload>) => {
+  const updateSection = (idx: number, updates: Partial<CreateSectionPayload>) =>
     setSections((prev) => prev.map((s, i) => (i === idx ? { ...s, ...updates } : s)))
-  }
 
-  const addQuestion = (sectionIdx: number) => {
+  const addQuestion = (sIdx: number) =>
     setSections((prev) => {
       const next = [...prev]
-      const section = { ...next[sectionIdx] }
-      section.DanhSachCauHoi = [...section.DanhSachCauHoi, newQuestion(section.DanhSachCauHoi.length)]
-      next[sectionIdx] = section
+      const section = { ...next[sIdx] }
+      section.questions = [...(section.questions ?? []), newQuestion((section.questions ?? []).length)]
+      next[sIdx] = section
       return next
     })
-  }
 
-  const updateQuestion = (sectionIdx: number, questionIdx: number, q: CreateCauHoiPayload) => {
+  const updateQuestion = (sIdx: number, qIdx: number, q: CreateQuestionPayload) =>
     setSections((prev) => {
       const next = [...prev]
-      const section = { ...next[sectionIdx] }
-      section.DanhSachCauHoi = section.DanhSachCauHoi.map((old, i) => (i === questionIdx ? q : old))
-      next[sectionIdx] = section
+      const section = { ...next[sIdx] }
+      section.questions = (section.questions ?? []).map((old, i) => (i === qIdx ? q : old))
+      next[sIdx] = section
       return next
     })
-  }
 
-  const removeQuestion = (sectionIdx: number, questionIdx: number) => {
+  const removeQuestion = (sIdx: number, qIdx: number) =>
     setSections((prev) => {
       const next = [...prev]
-      const section = { ...next[sectionIdx] }
-      section.DanhSachCauHoi = section.DanhSachCauHoi
-        .filter((_, i) => i !== questionIdx)
-        .map((q, i) => ({ ...q, ThuTu: i }))
-      next[sectionIdx] = section
+      const section = { ...next[sIdx] }
+      section.questions = (section.questions ?? [])
+        .filter((_, i) => i !== qIdx)
+        .map((q, i) => ({ ...q, order: i }))
+      next[sIdx] = section
       return next
     })
-  }
 
   const handleSave = () => {
+    const validationErrors = validateForm(title, sections)
+    setErrors(validationErrors)
+
+    if (Object.keys(validationErrors).length > 0) return
+
+    const cleanSections: CreateSectionPayload[] = sections.map((s, sIdx) => ({
+      ...s,
+      order: sIdx,
+      questions: (s.questions ?? []).map((q, qIdx) => ({
+        ...q,
+        order: qIdx,
+        options: CHOICE_TYPES.includes(q.type)
+          ? (q.options ?? [])
+              .filter((o) => o.label.trim())
+              .map((o, oi) => ({ ...o, order: oi }))
+          : [],
+      })),
+    }))
+
     onSave({
-      TenForm: tenForm,
-      MoTa: moTa || undefined,
-      DanhSachPhan: sections,
+      title: title.trim(),
+      description: description.trim() || null,
+      sections: cleanSections,
     })
   }
 
@@ -274,16 +363,21 @@ export function FormBuilder({ initialData, onSave, isSaving }: FormBuilderProps)
       {/* Form header */}
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <Input
-            value={tenForm}
-            onChange={(e) => setTenForm(e.target.value)}
-            placeholder="Ten form..."
-            className="text-xl font-semibold border-0 border-b-2 rounded-none px-0 focus-visible:ring-0"
-          />
+          <div className="space-y-1">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Tên biểu mẫu..."
+              className={`text-xl font-semibold border-0 border-b-2 rounded-none px-0 focus-visible:ring-0 ${
+                errors.title ? "border-red-500" : ""
+              }`}
+            />
+            {errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
+          </div>
           <Textarea
-            value={moTa}
-            onChange={(e) => setMoTa(e.target.value)}
-            placeholder="Mo ta form (tuy chon)..."
+            value={description ?? ""}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Mô tả biểu mẫu (tùy chọn)..."
             className="resize-none border-0 border-b rounded-none px-0 focus-visible:ring-0"
             rows={2}
           />
@@ -291,76 +385,82 @@ export function FormBuilder({ initialData, onSave, isSaving }: FormBuilderProps)
       </Card>
 
       {/* Sections */}
-      {sections.map((section, sIdx) => (
-        <Card key={sIdx} className="border-l-4 border-l-blue-500">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <Input
-                value={section.TieuDe}
-                onChange={(e) => updateSection(sIdx, { TieuDe: e.target.value })}
-                placeholder="Tieu de phan..."
-                className="text-lg font-semibold border-0 border-b rounded-none px-0 focus-visible:ring-0 flex-1"
-              />
-              {sections.length > 1 && (
-                <button
-                  onClick={() => removeSection(sIdx)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <IconTrash className="size-5" />
-                </button>
-              )}
-            </div>
-            <Input
-              value={section.MoTa || ""}
-              onChange={(e) => updateSection(sIdx, { MoTa: e.target.value || undefined })}
-              placeholder="Mo ta phan (tuy chon)..."
-              className="text-sm border-0 border-b rounded-none px-0 focus-visible:ring-0 text-muted-foreground"
-            />
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={(e) => handleDragEnd(e, sIdx)}
-            >
-              <SortableContext
-                items={section.DanhSachCauHoi.map((_, i) => `s${sIdx}-q${i}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                {section.DanhSachCauHoi.map((q, qIdx) => (
-                  <SortableQuestion
-                    key={`s${sIdx}-q${qIdx}`}
-                    question={q}
-                    index={qIdx}
-                    sectionIndex={sIdx}
-                    onUpdate={(updated) => updateQuestion(sIdx, qIdx, updated)}
-                    onRemove={() => removeQuestion(sIdx, qIdx)}
+      {sections.map((section, sIdx) => {
+        const sErr = errors.sections?.[sIdx]
+        return (
+          <Card key={sIdx} className="border-l-4 border-l-blue-500">
+            <CardHeader className="pb-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 space-y-1">
+                  <Input
+                    value={section.title}
+                    onChange={(e) => updateSection(sIdx, { title: e.target.value })}
+                    placeholder="Tiêu đề phần..."
+                    className={`text-lg font-semibold border-0 border-b rounded-none px-0 focus-visible:ring-0 ${
+                      sErr?.title ? "border-red-500" : ""
+                    }`}
                   />
-                ))}
-              </SortableContext>
-            </DndContext>
+                  {sErr?.title && <p className="text-xs text-red-500">{sErr.title}</p>}
+                </div>
+                {sections.length > 1 && (
+                  <button onClick={() => removeSection(sIdx)} className="text-red-500 hover:text-red-700">
+                    <IconTrash className="size-5" />
+                  </button>
+                )}
+              </div>
+              <Input
+                value={section.description ?? ""}
+                onChange={(e) => updateSection(sIdx, { description: e.target.value || null })}
+                placeholder="Mô tả phần (tùy chọn)..."
+                className="text-sm border-0 border-b rounded-none px-0 focus-visible:ring-0 text-muted-foreground"
+              />
+            </CardHeader>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-dashed"
-              onClick={() => addQuestion(sIdx)}
-            >
-              <IconPlus className="size-4 mr-2" /> Them cau hoi
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+            <CardContent className="space-y-3">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(e) => handleDragEnd(e, sIdx)}
+              >
+                <SortableContext
+                  items={(section.questions ?? []).map((_, i) => `s${sIdx}-q${i}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {(section.questions ?? []).map((q, qIdx) => (
+                    <SortableQuestion
+                      key={`s${sIdx}-q${qIdx}`}
+                      question={q}
+                      index={qIdx}
+                      sectionIndex={sIdx}
+                      errors={sErr?.questions?.[qIdx]}
+                      onUpdate={(updated) => updateQuestion(sIdx, qIdx, updated)}
+                      onRemove={() => removeQuestion(sIdx, qIdx)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-dashed"
+                onClick={() => addQuestion(sIdx)}
+              >
+                <IconPlus className="size-4 mr-2" /> Thêm câu hỏi
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      })}
 
       {/* Actions */}
       <div className="flex items-center justify-between">
         <Button type="button" variant="outline" onClick={addSection}>
-          <IconPlus className="size-4 mr-2" /> Them phan moi
+          <IconPlus className="size-4 mr-2" /> Thêm phần mới
         </Button>
 
-        <Button onClick={handleSave} disabled={isSaving || !tenForm.trim()}>
-          {isSaving ? "Dang luu..." : "Luu form"}
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? "Đang lưu..." : "Lưu biểu mẫu"}
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
+const { resolveFields, resolveArrayFields, resolveNested } = require("../../utils/s3-helpers");
 
 const USER_SELECT = {
   userId: true,
@@ -46,6 +47,8 @@ const getUsers = async ({ page = 1, limit = 20, search, status, university }) =>
     prisma.user.count({ where }),
   ]);
 
+  await resolveArrayFields(data, ["avatarUrl"]);
+
   return {
     data,
     meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -67,7 +70,11 @@ const getUserById = async (userId) => {
   });
 
   if (!user) throw new AppError("USER_NOT_FOUND");
-  return user;
+  await resolveFields(user, ["avatarUrl"]);
+
+  const roles = (user.userRoles || []).map((ur) => ur.role?.code).filter(Boolean);
+  const { userRoles, ...rest } = user;
+  return { ...rest, roles };
 };
 
 // ─── Update own profile ─────────────────────────────────────────────────────
@@ -78,11 +85,13 @@ const updateProfile = async (userId, data) => {
   });
   if (!user) throw new AppError("USER_NOT_FOUND");
 
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { userId },
     data: { ...data, updatedBy: userId, updatedAt: new Date() },
     select: USER_SELECT,
   });
+  await resolveFields(updated, ["avatarUrl"]);
+  return updated;
 };
 
 // ─── Update user status (admin) ─────────────────────────────────────────────
@@ -164,6 +173,10 @@ const getUserOrganizations = async (userId) => {
       },
     },
   });
+
+  for (const m of members) {
+    if (m.organization) await resolveFields(m.organization, ["logoUrl"]);
+  }
 
   return members;
 };

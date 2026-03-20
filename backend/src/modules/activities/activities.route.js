@@ -20,6 +20,15 @@ router.use(protect);
 // ─── Public (any authenticated user) ────────────────────────────────────────
 router.get("/categories", controller.getCategories);
 router.get("/", validateQuery(getActivitiesQuerySchema), controller.getActivities);
+
+// ─── Org leader / Admin: activities they manage ──────────────────────────────
+router.get(
+  "/my-org",
+  authorize("admin", "organization_leader"),
+  validateQuery(getActivitiesQuerySchema),
+  controller.getMyOrgActivities
+);
+
 router.get("/:id", controller.getActivityById);
 
 // ─── Admin / Organization Leader ────────────────────────────────────────────

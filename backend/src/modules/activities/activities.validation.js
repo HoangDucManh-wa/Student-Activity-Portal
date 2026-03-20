@@ -15,6 +15,7 @@ const createActivitySchema = z.object({
   prize: z.string().optional().nullable(),
   organizationId: z.coerce.number().int().positive(),
   categoryId: z.coerce.number().int().positive(),
+  registrationFormId: z.coerce.number().int().positive().optional().nullable(),
   teamRule: z.object({
     minTeamMembers: z.coerce.number().int().min(1).optional().nullable(),
     maxTeamMembers: z.coerce.number().int().min(1).optional().nullable(),
@@ -35,6 +36,7 @@ const updateActivitySchema = z.object({
   maxParticipants: z.coerce.number().int().min(1).optional().nullable(),
   prize: z.string().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional(),
+  registrationFormId: z.coerce.number().int().positive().optional().nullable(),
   teamRule: z.object({
     minTeamMembers: z.coerce.number().int().min(1).optional().nullable(),
     maxTeamMembers: z.coerce.number().int().min(1).optional().nullable(),
@@ -42,7 +44,7 @@ const updateActivitySchema = z.object({
 });
 
 const updateActivityStatusSchema = z.object({
-  activityStatus: z.enum(["draft", "published", "running", "finished", "cancelled"]),
+  activityStatus: z.enum(["draft", "pending_review", "published", "running", "finished", "cancelled"]),
 });
 
 const getActivitiesQuerySchema = z.object({
@@ -51,7 +53,7 @@ const getActivitiesQuerySchema = z.object({
   search: z.string().optional(),
   categoryId: z.coerce.number().int().positive().optional(),
   organizationId: z.coerce.number().int().positive().optional(),
-  activityStatus: z.enum(["draft", "published", "running", "finished", "cancelled"]).optional(),
+  activityStatus: z.enum(["draft", "pending_review", "published", "running", "finished", "cancelled"]).optional(),
   activityType: z.enum(["program", "competition", "recruitment"]).optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),

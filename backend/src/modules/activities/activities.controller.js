@@ -97,6 +97,15 @@ const getCheckinSessions = async (req, res, next) => {
   }
 };
 
+const getMyOrgActivities = async (req, res, next) => {
+  try {
+    const result = await activitiesService.getMyOrgActivities(req.user.userId, req.query);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createActivity,
   getActivities,
@@ -107,5 +116,6 @@ module.exports = {
   getCategories,
   createCategory,
   createCheckinSession,
+  getMyOrgActivities,
   getCheckinSessions,
 };

@@ -2,119 +2,61 @@ const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
 const { ACTIVITY_STATUS, REGISTRATION_STATUS } = require("../../utils/constants");
 const { isAdminOrOrgLeader } = require("../../utils/permissions");
+const {
+  getRegistrationQueue,
+  getRegistrationQueueEvents,
+} = require("../../config/bullmq");
+const { resolveFields } = require("../../utils/s3-helpers");
 
-// ─── Create registration ────────────────────────────────────────────────────
+// ─── Create registration (queue-based) ──────────────────────────────────────
+//
+// Pre-validates activity state, then enqueues the job into BullMQ.
+// The worker (concurrency=1) handles the capacity check + insert atomically,
+// preventing race conditions where two concurrent requests both pass the
+// count check and over-fill the activity.
+
+const QUEUE_TIMEOUT_MS = 30_000;
 
 const createRegistration = async (data, userId) => {
   const { activityId, registrationType, teamName, isLookingForTeam, teamMembers } = data;
 
-  // Verify activity
+  // ── Pre-validation (read-only, safe outside queue) ──
   const activity = await prisma.activity.findFirst({
     where: { activityId, isDeleted: false },
   });
   if (!activity) throw new AppError("ACTIVITY_NOT_FOUND");
 
-  // Must be published or running
   if (![ACTIVITY_STATUS.PUBLISHED, ACTIVITY_STATUS.RUNNING].includes(activity.activityStatus)) {
     throw new AppError("ACTIVITY_CANNOT_MODIFY", "Hoạt động chưa mở đăng ký");
   }
 
-  // Check deadline
   if (activity.registrationDeadline && new Date() > activity.registrationDeadline) {
     throw new AppError("REGISTRATION_DEADLINE_PASSED");
   }
 
-  // Check duplicate
-  const existing = await prisma.registration.findUnique({
-    where: { userId_activityId: { userId, activityId } },
-  });
-  if (existing && !existing.isDeleted) {
-    throw new AppError("REGISTRATION_DUPLICATE");
-  }
+  // ── Enqueue registration job ──
+  const queue = getRegistrationQueue();
+  const queueEvents = getRegistrationQueueEvents();
 
-  // Check capacity
-  let isWaitlisted = false;
-  if (activity.maxParticipants) {
-    const currentCount = await prisma.registration.count({
-      where: {
-        activityId,
-        isDeleted: false,
-        status: { in: [REGISTRATION_STATUS.PENDING, REGISTRATION_STATUS.APPROVED] },
-      },
-    });
-    if (currentCount >= activity.maxParticipants) {
-      isWaitlisted = true;
-    }
-  }
-
-  // Re-activate if soft-deleted, or create new
-  let registration;
-  if (existing && existing.isDeleted) {
-    registration = await prisma.registration.update({
-      where: { registrationId: existing.registrationId },
-      data: {
-        status: REGISTRATION_STATUS.PENDING,
-        registrationType,
-        teamName: teamName || null,
-        isLookingForTeam: isLookingForTeam || null,
-        isDeleted: false,
-        deletedAt: null,
-        deletedBy: null,
-        registrationTime: new Date(),
-        updatedBy: userId,
-        updatedAt: new Date(),
-      },
-    });
-  } else {
-    registration = await prisma.registration.create({
-      data: {
-        userId,
-        activityId,
-        status: REGISTRATION_STATUS.PENDING,
-        registrationType,
-        teamName: teamName || null,
-        isLookingForTeam: isLookingForTeam || null,
-        createdBy: userId,
-      },
-    });
-  }
-
-  // Create team members if group registration
-  if (registrationType === "group" && teamMembers && teamMembers.length > 0) {
-    const memberData = teamMembers.map((m) => ({
-      registrationId: registration.registrationId,
-      userId: m.userId,
-      role: m.role || "member",
-      createdBy: userId,
-    }));
-
-    // Add the creator as leader
-    memberData.unshift({
-      registrationId: registration.registrationId,
-      userId,
-      role: "leader",
-      createdBy: userId,
-    });
-
-    // Use createMany, skip duplicates
-    await prisma.teamMember.createMany({
-      data: memberData,
-      skipDuplicates: true,
-    });
-  }
-
-  const result = await prisma.registration.findUnique({
-    where: { registrationId: registration.registrationId },
-    include: {
-      activity: { select: { activityId: true, activityName: true } },
-      teamMembers: {
-        where: { isDeleted: false },
-        include: { user: { select: { userId: true, userName: true } } },
-      },
-    },
+  const job = await queue.add("register", {
+    activityId,
+    userId,
+    registrationType,
+    teamName,
+    isLookingForTeam,
+    teamMembers,
+    maxParticipants: activity.maxParticipants,
   });
 
-  return { ...result, isWaitlisted };
+  // Wait for the worker to finish processing this job
+  const result = await job.waitUntilFinished(queueEvents, QUEUE_TIMEOUT_MS);
+
+  // Worker returns { error, message } on validation failure, { data } on success
+  if (result.error) {
+    throw new AppError(result.error, result.message);
+  }
+
+  return result.data;
 };
 
 // ─── Cancel registration ────────────────────────────────────────────────────
@@ -137,7 +79,9 @@ const cancelRegistration = async (registrationId, userId) => {
 
 // ─── Get my registrations ───────────────────────────────────────────────────
 
-const getMyRegistrations = async (userId, { page = 1, limit = 20, status }) => {
+const getMyRegistrations = async (userId, { page = 1, limit = 20, status } = {}) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
   const where = {
     userId,
     isDeleted: false,
@@ -162,21 +106,27 @@ const getMyRegistrations = async (userId, { page = 1, limit = 20, status }) => {
         },
       },
       orderBy: { registrationTime: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
     }),
     prisma.registration.count({ where }),
   ]);
 
+  for (const item of data) {
+    if (item.activity) await resolveFields(item.activity, ["coverImage"]);
+  }
+
   return {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
 };
 
 // ─── Get registrations by activity (admin/leader) ───────────────────────────
 
-const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, status }) => {
+const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, status } = {}) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
   const where = {
     activityId: Number(activityId),
     isDeleted: false,
@@ -194,15 +144,19 @@ const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, st
         },
       },
       orderBy: { registrationTime: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
     }),
     prisma.registration.count({ where }),
   ]);
 
+  for (const item of data) {
+    if (item.user) await resolveFields(item.user, ["avatarUrl"]);
+  }
+
   return {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
 };
 
@@ -251,13 +205,35 @@ const updateRegistrationStatus = async (registrationId, status, userId, roles) =
   );
   if (!hasPermission) throw new AppError("FORBIDDEN");
 
-  return prisma.registration.update({
+  const updated = await prisma.registration.update({
     where: { registrationId: Number(registrationId) },
     data: { status, updatedBy: userId, updatedAt: new Date() },
     include: {
       user: { select: { userId: true, userName: true, email: true } },
     },
   });
+
+  // Notify registrant on approval or rejection
+  if ([REGISTRATION_STATUS.APPROVED, REGISTRATION_STATUS.REJECTED].includes(status)) {
+    const { sendNotification } = require("../notifications/notifications.service");
+    const statusText = status === REGISTRATION_STATUS.APPROVED ? "được duyệt" : "bị từ chối";
+    try {
+      await sendNotification(
+        {
+          title: `Đăng ký ${statusText}`,
+          content: `Đăng ký của bạn cho hoạt động "${registration.activity.activityName}" đã ${statusText}.`,
+          userId: registration.userId,
+          notificationType: "registration",
+          channels: ["IN_APP"],
+        },
+        userId
+      );
+    } catch (_) {
+      // Notification failure must not fail the status update
+    }
+  }
+
+  return updated;
 };
 
 // ─── Bulk update status ─────────────────────────────────────────────────────

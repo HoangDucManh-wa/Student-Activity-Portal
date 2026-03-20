@@ -50,4 +50,14 @@ const importUsersFromCSV = async (req, res, next) => {
   }
 };
 
-module.exports = { getOverviewStats, getActivityStats, createUser, importUsersFromCSV };
+const getRegistrationTrend = async (req, res, next) => {
+  try {
+    const months = Number(req.query.months) || 6;
+    const data = await adminService.getRegistrationTrend(months);
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getOverviewStats, getActivityStats, getRegistrationTrend, createUser, importUsersFromCSV };

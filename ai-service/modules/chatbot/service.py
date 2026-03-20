@@ -1,4 +1,5 @@
 import json
+from typing import Generator
 from config.gemini import get_model
 from utils.errors import raise_error
 from modules.chatbot.schemas import ChatMessage, PortalContext
@@ -68,3 +69,37 @@ def chat(message: str, history: list[ChatMessage], context: PortalContext) -> tu
 
     except Exception as e:
         raise_error("AI_PROCESSING_FAILED", str(e))
+
+
+def chat_stream(
+    message: str,
+    history: list[ChatMessage],
+    context: PortalContext,
+) -> Generator[str, None, None]:
+    """Yield text chunks from Gemini using generate_content(stream=True).
+
+    Using generate_content directly is more reliable for streaming than
+    ChatSession.send_message(stream=True) in google-generativeai 0.8.x.
+    """
+    model = get_model("gemini-flash-latest")
+    system_prompt = build_system_prompt(context)
+
+    # Build the full conversation as a flat contents list
+    contents = [
+        {"role": "user", "parts": [system_prompt]},
+        {"role": "model", "parts": ["Tôi đã hiểu. Tôi sẵn sàng hỗ trợ sinh viên!"]},
+    ]
+    for msg in history:
+        contents.append({"role": msg.role, "parts": [msg.content]})
+    contents.append({"role": "user", "parts": [message]})
+
+    response = model.generate_content(contents, stream=True)
+
+    for chunk in response:
+        # chunk.text raises ValueError on safety-blocked or finish-only chunks
+        try:
+            text = chunk.text
+            if text:
+                yield text
+        except (ValueError, AttributeError):
+            continue

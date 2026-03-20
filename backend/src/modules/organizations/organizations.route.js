@@ -18,6 +18,8 @@ router.use(protect);
 
 // ─── Public (any authenticated user) ────────────────────────────────────────
 router.get("/", validateQuery(getOrganizationsQuerySchema), controller.getOrganizations);
+router.get("/my", authorize("organization_leader", "admin"), controller.getMyOrganization);
+router.get("/:id/stats", controller.getOrgStats);
 router.get("/:id", controller.getOrganizationById);
 
 // ─── Admin / Organization Leader ────────────────────────────────────────────

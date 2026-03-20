@@ -1,0 +1,7 @@
+userName,email,password,university,studentId,phoneNumber,role
+Nguyen Van An,student1_import@test.com,Student@123,Dai hoc Bach Khoa,SV001,0901234567,student
+Tran Thi Bich,student2_import@test.com,Student@123,Dai hoc Khoa hoc Tu nhien,SV002,0912345678,student
+Le Minh Cuong,leader_import@test.com,Leader@123,Dai hoc Su pham,SV003,0923456789,organization_leader
+Pham Hoang Dung,member_import@test.com,Member@123,Dai hoc Cong nghe,SV004,,organization_member
+Hoang Thi Em,student3_import@test.com,Student@123,Dai hoc Kinh te,,,student
+Vo Van Phuc,student4_import@test.com,Student@123,Dai hoc Y duoc,SV006,0945678901,student

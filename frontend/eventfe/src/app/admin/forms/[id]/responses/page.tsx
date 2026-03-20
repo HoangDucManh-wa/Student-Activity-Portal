@@ -6,9 +6,9 @@ import { useParams } from "next/navigation"
 import { useFormDetail, useFormResponses, useApproveResponse } from "@/hooks/useForm.hook"
 import { exportGoogleSheets } from "@/services/form.service"
 import { envConfig } from "@/configs/env.config"
-import { ResponseTable } from "@/components/form-builder/response-table"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -19,14 +19,22 @@ import {
   IconArrowLeft,
   IconFileSpreadsheet,
   IconBrandGoogleDrive,
+  IconCheck,
+  IconX,
 } from "@tabler/icons-react"
 import { toastSuccess, toastError } from "@/lib/toast"
-import type { PhanHoiForm } from "@/types/form/form.types"
+import type { FormResponse, ResponseStatus } from "@/types/form/form.types"
+
+const STATUS_MAP: Record<ResponseStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  submitted: { label: "Da nop", variant: "secondary" },
+  approved: { label: "Da duyet", variant: "default" },
+  rejected: { label: "Tu choi", variant: "destructive" },
+}
 
 export default function ResponsesPage() {
   const params = useParams<{ id: string }>()
   const [page, setPage] = React.useState(1)
-  const [selectedResponse, setSelectedResponse] = React.useState<PhanHoiForm | null>(null)
+  const [selectedResponse, setSelectedResponse] = React.useState<FormResponse | null>(null)
 
   const { data: formResult } = useFormDetail(params.id)
   const { data: responsesResult, isLoading } = useFormResponses({
@@ -37,20 +45,20 @@ export default function ResponsesPage() {
   const approveMutation = useApproveResponse(params.id)
 
   const form = formResult?.data
-  const responses = responsesResult?.data?.data || []
+  const responses: FormResponse[] = responsesResult?.data?.data ?? []
   const meta = responsesResult?.data?.meta
 
-  const handleApprove = async (responseId: string, status: "DA_DUYET" | "TU_CHOI") => {
+  const handleApprove = async (responseId: number, status: "approved" | "rejected") => {
     try {
-      await approveMutation.mutateAsync({ responseId, TrangThai: status })
-      toastSuccess(status === "DA_DUYET" ? "Da duyet phan hoi" : "Da tu choi phan hoi")
+      await approveMutation.mutateAsync({ responseId, status })
+      toastSuccess(status === "approved" ? "Da duyet phan hoi" : "Da tu choi phan hoi")
     } catch {
       toastError("Thao tac that bai")
     }
   }
 
   const handleExportExcel = () => {
-    const url = `${envConfig.NEXT_PUBLIC_API_URL}/mau-form/${params.id}/export/excel`
+    const url = `${envConfig.NEXT_PUBLIC_API_URL}/forms/${params.id}/export/excel`
     window.open(url, "_blank")
   }
 
@@ -77,7 +85,7 @@ export default function ResponsesPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold">Phan hoi</h1>
-            {form && <p className="text-sm text-muted-foreground">{form.TenForm}</p>}
+            {form && <p className="text-sm text-muted-foreground">{form.title}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -94,24 +102,63 @@ export default function ResponsesPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <p className="text-muted-foreground p-6">Dang tai...</p>
+          ) : responses.length === 0 ? (
+            <p className="text-muted-foreground p-6 text-center">Chua co phan hoi nao.</p>
           ) : (
-            <ResponseTable
-              responses={responses}
-              onApprove={handleApprove}
-              onViewDetail={(r) => setSelectedResponse(r)}
-            />
+            <div className="divide-y">
+              {responses.map((r) => {
+                const statusInfo = STATUS_MAP[r.status] ?? STATUS_MAP.submitted
+                return (
+                  <div key={r.responseId} className="flex items-center justify-between px-4 py-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">
+                        {r.user?.userName ?? r.respondentEmail ?? `#${r.responseId}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(r.submittedAt).toLocaleString("vi-VN")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                      {r.status === "submitted" && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleApprove(r.responseId, "approved")}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <IconCheck className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleApprove(r.responseId, "rejected")}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <IconX className="size-4" />
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedResponse(r)}
+                      >
+                        Xem
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
 
       {meta && meta.totalPages > 1 && (
         <div className="flex justify-center gap-2 mt-6">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             Truoc
           </Button>
           <span className="flex items-center text-sm text-muted-foreground">
@@ -137,25 +184,24 @@ export default function ResponsesPage() {
             <div className="space-y-4">
               <div className="text-sm">
                 <span className="font-medium">Nguoi nop:</span>{" "}
-                {selectedResponse.nguoiDung?.TenNguoiDung || selectedResponse.MaNguoiDung}
+                {selectedResponse.user?.userName ?? selectedResponse.respondentEmail ?? `#${selectedResponse.responseId}`}
               </div>
               <div className="text-sm">
                 <span className="font-medium">Thoi gian:</span>{" "}
-                {new Date(selectedResponse.ThoiGianNop).toLocaleString("vi-VN")}
+                {new Date(selectedResponse.submittedAt).toLocaleString("vi-VN")}
               </div>
               <div className="border-t pt-4 space-y-3">
-                {selectedResponse.cauTraLoi.map((answer) => (
-                  <div key={answer.MaCauTraLoi} className="space-y-1">
-                    <p className="text-sm font-medium">
-                      {answer.cauHoi?.NoiDung || answer.MaCauHoi}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {answer.GiaTriNhieu
-                        ? answer.GiaTriNhieu.join(", ")
-                        : answer.GiaTri || "-"}
-                    </p>
-                  </div>
-                ))}
+                {selectedResponse.answers.map((answer) => {
+                  const displayValue = answer.answerOptions.length > 0
+                    ? answer.answerOptions.map((ao) => ao.option?.label ?? ao.otherText ?? "").filter(Boolean).join(", ")
+                    : answer.textValue ?? "-"
+                  return (
+                    <div key={answer.answerId} className="space-y-1">
+                      <p className="text-sm font-medium">{answer.question.title}</p>
+                      <p className="text-sm text-muted-foreground">{displayValue}</p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

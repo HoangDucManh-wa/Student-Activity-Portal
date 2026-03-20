@@ -13,6 +13,7 @@ router.use(authorize("admin"));
 // Stats
 router.get("/stats/overview", controller.getOverviewStats);
 router.get("/stats/activities", controller.getActivityStats);
+router.get("/stats/registrations", controller.getRegistrationTrend);
 
 // User management — create single user
 router.post("/users", validate(createUserSchema), controller.createUser);

@@ -1,4 +1,5 @@
 const authService = require("./auth.service");
+const usersService = require("../users/users.service");
 const { success } = require("../../utils/response");
 
 const register = async (req, res, next) => {
@@ -76,8 +77,13 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-const me = async (req, res) => {
-  return success(res, { user: req.user });
+const me = async (req, res, next) => {
+  try {
+    const user = await usersService.getUserById(req.user.userId);
+    return success(res, { user });
+  } catch (err) {
+    next(err);
+  }
 };
 
 module.exports = {

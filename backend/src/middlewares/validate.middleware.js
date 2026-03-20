@@ -41,8 +41,21 @@ const validateQuery = (schema) => (req, res, next) => {
   next();
 };
 
+// Middleware validate dữ liệu params (route params)
+const validateParams = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.params);
+
+  if (!result.success) {
+    throw new AppError("VALIDATION_ERROR", result.error.errors[0]?.message);
+  }
+
+  req.params = result.data;
+  next();
+};
+
 // export middleware validate
 module.exports = validate;
 
-// export thêm middleware validateQuery
+// export thêm middleware validateQuery, validateParams
 module.exports.validateQuery = validateQuery;
+module.exports.validateParams = validateParams;

@@ -10,6 +10,15 @@ const getUsers = async (req, res, next) => {
   }
 };
 
+const getMe = async (req, res, next) => {
+  try {
+    const result = await usersService.getUserById(req.user.userId);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getUserById = async (req, res, next) => {
   try {
     const result = await usersService.getUserById(req.params.id);
@@ -72,6 +81,7 @@ module.exports = {
   getUsers,
   getUserById,
   updateProfile,
+  getMe,
   updateUserStatus,
   deleteUser,
   getUserActivities,

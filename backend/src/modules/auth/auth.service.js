@@ -112,6 +112,7 @@ const login = async ({ email, password }) => {
       email: user.email,
       university: user.university,
       status: user.status,
+      role,
     },
     accessToken,
     refreshToken,

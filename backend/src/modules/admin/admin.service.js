@@ -157,4 +157,21 @@ const importUsersFromCSV = async (csvText, createdBy) => {
   };
 };
 
-module.exports = { getOverviewStats, getActivityStats, createUser, importUsersFromCSV };
+// ─── Monthly registration trend (last N months) ───────────────────────────
+
+const getRegistrationTrend = async (months = 6) => {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      TO_CHAR(DATE_TRUNC('month', "registrationTime"), 'YYYY-MM') AS month,
+      COUNT(*)::int AS total
+    FROM registrations
+    WHERE "isDeleted" = false
+      AND "registrationTime" >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month' * ${months - 1}
+    GROUP BY DATE_TRUNC('month', "registrationTime")
+    ORDER BY DATE_TRUNC('month', "registrationTime")
+  `;
+
+  return rows.map((r) => ({ month: r.month, total: r.total }));
+};
+
+module.exports = { getOverviewStats, getActivityStats, getRegistrationTrend, createUser, importUsersFromCSV };

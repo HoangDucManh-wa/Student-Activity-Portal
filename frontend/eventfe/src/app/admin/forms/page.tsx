@@ -17,12 +17,12 @@ import {
 } from "@tabler/icons-react"
 import { toastSuccess, toastError } from "@/lib/toast"
 import { useQueryClient } from "@tanstack/react-query"
-import type { MauForm, TrangThaiForm } from "@/types/form/form.types"
+import type { Form, FormStatus } from "@/types/form/form.types"
 
-const STATUS_MAP: Record<TrangThaiForm, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  NHAP: { label: "Nhap", variant: "secondary" },
-  DANG_MO: { label: "Dang mo", variant: "default" },
-  DA_DONG: { label: "Da dong", variant: "destructive" },
+const STATUS_MAP: Record<FormStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  draft: { label: "Nhap", variant: "secondary" },
+  open: { label: "Dang mo", variant: "default" },
+  closed: { label: "Da dong", variant: "destructive" },
 }
 
 export default function FormsListPage() {
@@ -31,10 +31,10 @@ export default function FormsListPage() {
   const deleteMutation = useDeleteForm()
   const queryClient = useQueryClient()
 
-  const forms = result?.data?.data || []
+  const forms: Form[] = result?.data?.data ?? []
   const meta = result?.data?.meta
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Ban co chac muon xoa form nay?")) return
     try {
       await deleteMutation.mutateAsync(id)
@@ -44,7 +44,7 @@ export default function FormsListPage() {
     }
   }
 
-  const handleChangeStatus = async (id: string, status: TrangThaiForm) => {
+  const handleChangeStatus = async (id: number, status: FormStatus) => {
     try {
       await changeFormStatus(id, status)
       queryClient.invalidateQueries({ queryKey: ["forms"] })
@@ -76,41 +76,41 @@ export default function FormsListPage() {
       )}
 
       <div className="grid gap-4">
-        {forms.map((form: MauForm) => {
-          const status = STATUS_MAP[form.TrangThai] || STATUS_MAP.NHAP
+        {forms.map((form) => {
+          const statusInfo = STATUS_MAP[form.status] ?? STATUS_MAP.draft
           return (
-            <Card key={form.MaForm}>
+            <Card key={form.formId}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <CardTitle className="text-lg">{form.TenForm}</CardTitle>
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <CardTitle className="text-lg">{form.title}</CardTitle>
+                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    {form.TrangThai === "NHAP" && (
+                    {form.status === "draft" && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleChangeStatus(form.MaForm, "DANG_MO")}
+                        onClick={() => handleChangeStatus(form.formId, "open")}
                       >
                         <IconPlayerPlay className="size-4 mr-1" /> Mo form
                       </Button>
                     )}
-                    {form.TrangThai === "DANG_MO" && (
+                    {form.status === "open" && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleChangeStatus(form.MaForm, "DA_DONG")}
+                        onClick={() => handleChangeStatus(form.formId, "closed")}
                       >
                         <IconPlayerStop className="size-4 mr-1" /> Dong form
                       </Button>
                     )}
-                    <Link href={`/admin/forms/${form.MaForm}/responses`}>
+                    <Link href={`/admin/forms/${form.formId}/responses`}>
                       <Button variant="outline" size="sm">
-                        <IconFileSpreadsheet className="size-4 mr-1" /> Phan hoi ({form._count?.phanHoiForm || 0})
+                        <IconFileSpreadsheet className="size-4 mr-1" /> Phan hoi ({form._count?.responses ?? 0})
                       </Button>
                     </Link>
-                    <Link href={`/admin/forms/${form.MaForm}/edit`}>
+                    <Link href={`/admin/forms/${form.formId}/edit`}>
                       <Button variant="outline" size="sm">
                         <IconEdit className="size-4" />
                       </Button>
@@ -118,7 +118,7 @@ export default function FormsListPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDelete(form.MaForm)}
+                      onClick={() => handleDelete(form.formId)}
                       className="text-red-500 hover:text-red-700"
                     >
                       <IconTrash className="size-4" />
@@ -126,9 +126,9 @@ export default function FormsListPage() {
                   </div>
                 </div>
               </CardHeader>
-              {form.MoTa && (
+              {form.description && (
                 <CardContent className="pt-0">
-                  <p className="text-sm text-muted-foreground">{form.MoTa}</p>
+                  <p className="text-sm text-muted-foreground">{form.description}</p>
                 </CardContent>
               )}
             </Card>

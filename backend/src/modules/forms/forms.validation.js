@@ -86,6 +86,7 @@ const createFormSchema = z.object({
   openAt: z.string().datetime().optional().nullable(),
   closeAt: z.string().datetime().optional().nullable(),
   activityId: z.number().int().positive().optional().nullable(),
+  organizationId: z.number().int().positive().optional().nullable(),
   sections: z.array(sectionSchema).min(1, "At least 1 section is required"),
 });
 
@@ -104,6 +105,7 @@ const updateFormSchema = z.object({
   openAt: z.string().datetime().optional().nullable(),
   closeAt: z.string().datetime().optional().nullable(),
   activityId: z.number().int().positive().optional().nullable(),
+  organizationId: z.number().int().positive().optional().nullable(),
   status: z.enum(Object.values(FORM_STATUS)).optional(),
   sections: z.array(sectionSchema).optional(),
 });
@@ -149,6 +151,7 @@ const getFormListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   status: z.enum(Object.values(FORM_STATUS)).optional(),
   activityId: z.coerce.number().int().positive().optional(),
+  organizationId: z.coerce.number().int().positive().optional(),
 });
 
 const getResponseListSchema = z.object({

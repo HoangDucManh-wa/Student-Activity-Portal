@@ -15,6 +15,7 @@ const router = Router();
 router.use(protect);
 
 // ─── Current user ───────────────────────────────────────────────────────────
+router.get("/me", controller.getMe);
 router.get("/me/activities", controller.getUserActivities);
 router.get("/me/organizations", controller.getUserOrganizations);
 router.put("/me", validate(updateProfileSchema), controller.updateProfile);

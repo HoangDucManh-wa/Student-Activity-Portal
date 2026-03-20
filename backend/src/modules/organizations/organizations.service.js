@@ -1,17 +1,26 @@
+const bcrypt = require("bcryptjs");
 const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
-const { ORG_MEMBER_ROLE } = require("../../utils/constants");
+const cache = require("../../utils/cache");
+const { ORG_MEMBER_ROLE, ACTIVITY_STATUS } = require("../../utils/constants");
 const { isAdminOrOrgLeader } = require("../../utils/permissions");
+const { resolveFields, resolveArrayFields } = require("../../utils/s3-helpers");
 
 // ─── Create organization ────────────────────────────────────────────────────
 
 const createOrganization = async (data, createdBy) => {
+  const { email, password, ...orgData } = data;
+
+  const orgPayload = { ...orgData, createdBy };
+  if (email) orgPayload.email = email;
+  if (password) orgPayload.password = await bcrypt.hash(password, 12);
+
   const org = await prisma.organization.create({
-    data: {
-      ...data,
-      createdBy,
-    },
+    data: orgPayload,
   });
+
+  // Invalidate list cache
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ORGS_LIST);
 
   // Auto-add creator as president
   await prisma.organizationMember.create({
@@ -38,6 +47,16 @@ const createOrganization = async (data, createdBy) => {
 // ─── Get organizations (paginated) ──────────────────────────────────────────
 
 const getOrganizations = async ({ page = 1, limit = 20, search, organizationType }) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+
+  // ── Redis cache check ──
+  const cacheKey = cache.buildListKey(cache.REDIS_PREFIX.ORGS_LIST, {
+    page: pageNum, limit: limitNum, search, organizationType,
+  });
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const where = {
     isDeleted: false,
     ...(organizationType && { organizationType }),
@@ -58,21 +77,32 @@ const getOrganizations = async ({ page = 1, limit = 20, search, organizationType
         },
       },
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
     }),
     prisma.organization.count({ where }),
   ]);
 
-  return {
+  await resolveArrayFields(data, ["logoUrl", "coverImageUrl"]);
+
+  const result = {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
+
+  // ── Cache result (5 min TTL) ──
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 // ─── Get organization by ID ─────────────────────────────────────────────────
 
 const getOrganizationById = async (organizationId) => {
+  // ── Redis cache check ──
+  const cacheKey = `${cache.REDIS_PREFIX.ORG_DETAIL}${organizationId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const org = await prisma.organization.findFirst({
     where: { organizationId: Number(organizationId), isDeleted: false },
     include: {
@@ -89,6 +119,17 @@ const getOrganizationById = async (organizationId) => {
   });
 
   if (!org) throw new AppError("ORGANIZATION_NOT_FOUND");
+
+  await resolveFields(org, ["logoUrl", "coverImageUrl"]);
+  // Resolve member avatars
+  if (org.organizationMembers) {
+    for (const m of org.organizationMembers) {
+      if (m.user) await resolveFields(m.user, ["avatarUrl"]);
+    }
+  }
+
+  // ── Cache result (5 min TTL) ──
+  await cache.set(cacheKey, org, 300);
   return org;
 };
 
@@ -102,6 +143,10 @@ const updateOrganization = async (organizationId, data, userId, roles) => {
 
   const hasPermission = await isAdminOrOrgLeader(roles, Number(organizationId), userId);
   if (!hasPermission) throw new AppError("FORBIDDEN");
+
+  // Invalidate caches
+  await cache.del(`${cache.REDIS_PREFIX.ORG_DETAIL}${organizationId}`);
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ORGS_LIST);
 
   return prisma.organization.update({
     where: { organizationId: Number(organizationId) },
@@ -117,6 +162,10 @@ const softDeleteOrganization = async (organizationId, deletedBy) => {
   });
   if (!org) throw new AppError("ORGANIZATION_NOT_FOUND");
 
+  // Invalidate caches
+  await cache.del(`${cache.REDIS_PREFIX.ORG_DETAIL}${organizationId}`);
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ORGS_LIST);
+
   return prisma.organization.update({
     where: { organizationId: Number(organizationId) },
     data: { isDeleted: true, deletedAt: new Date(), deletedBy },
@@ -126,6 +175,8 @@ const softDeleteOrganization = async (organizationId, deletedBy) => {
 // ─── Get members ────────────────────────────────────────────────────────────
 
 const getMembers = async (organizationId, { page = 1, limit = 20 }) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
   const where = { organizationId: Number(organizationId), isDeleted: false };
 
   const [data, total] = await Promise.all([
@@ -135,15 +186,19 @@ const getMembers = async (organizationId, { page = 1, limit = 20 }) => {
         user: { select: { userId: true, userName: true, email: true, avatarUrl: true, studentId: true } },
       },
       orderBy: { joinDate: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
     }),
     prisma.organizationMember.count({ where }),
   ]);
 
+  for (const m of data) {
+    if (m.user) await resolveFields(m.user, ["avatarUrl"]);
+  }
+
   return {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
 };
 
@@ -273,6 +328,76 @@ const removeMember = async (organizationId, userId, removedBy, callerRoles) => {
   });
 };
 
+// ─── Get my organization (for org leader) ───────────────────────────────────
+
+const getMyOrganization = async (userId) => {
+  const membership = await prisma.organizationMember.findFirst({
+    where: {
+      userId,
+      isDeleted: false,
+      role: {
+        in: [
+          ORG_MEMBER_ROLE.PRESIDENT,
+          ORG_MEMBER_ROLE.VICE_PRESIDENT,
+          ORG_MEMBER_ROLE.HEAD_OF_DEPARTMENT,
+          ORG_MEMBER_ROLE.VICE_HEAD,
+        ],
+      },
+    },
+    orderBy: [{ joinDate: "desc" }, { createdAt: "desc" }],
+    include: {
+      organization: {
+        include: {
+          _count: {
+            select: {
+              organizationMembers: { where: { isDeleted: false } },
+              activities: { where: { isDeleted: false } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!membership?.organization) throw new AppError("ORGANIZATION_NOT_FOUND");
+
+  const org = membership.organization;
+  await resolveFields(org, ["logoUrl", "coverImageUrl"]);
+  return { ...org, memberRole: membership.role };
+};
+
+// ─── Get org stats (for dashboard) ─────────────────────────────────────────
+
+const getOrgStats = async (organizationId) => {
+  const now = new Date();
+
+  const [activeActivities, totalRegistrations, newMembers] = await Promise.all([
+    prisma.activity.count({
+      where: {
+        organizationId: Number(organizationId),
+        isDeleted: false,
+        activityStatus: ACTIVITY_STATUS.RUNNING,
+        endTime: { gte: now },
+      },
+    }),
+    prisma.registration.count({
+      where: {
+        isDeleted: false,
+        activity: { organizationId: Number(organizationId), isDeleted: false },
+      },
+    }),
+    prisma.organizationMember.count({
+      where: {
+        organizationId: Number(organizationId),
+        isDeleted: false,
+        joinDate: { gte: new Date(now.getFullYear(), now.getMonth(), 1) },
+      },
+    }),
+  ]);
+
+  return { activeActivities, totalRegistrations, newMembers };
+};
+
 module.exports = {
   createOrganization,
   getOrganizations,
@@ -283,4 +408,6 @@ module.exports = {
   addMember,
   updateMemberRole,
   removeMember,
+  getMyOrganization,
+  getOrgStats,
 };

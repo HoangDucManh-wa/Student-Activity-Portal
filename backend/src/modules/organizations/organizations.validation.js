@@ -3,6 +3,8 @@ const { z } = require("zod");
 const createOrganizationSchema = z.object({
   organizationName: z.string().min(1, "Tên tổ chức là bắt buộc").max(255),
   organizationType: z.enum(["university", "club", "department", "company"]),
+  email: z.string().email("Email không hợp lệ").optional().nullable(),
+  password: z.string().min(8, "Mật khẩu phải có ít nhất 8 ký tự").optional().nullable(),
   description: z.string().optional().nullable(),
   logoUrl: z.string().optional().nullable(),
   coverImageUrl: z.string().optional().nullable(),

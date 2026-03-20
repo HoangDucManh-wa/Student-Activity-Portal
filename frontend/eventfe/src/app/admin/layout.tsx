@@ -1,17 +1,14 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header";
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { ChatBot } from "@/components/ui-custom/ChatBot"
 import React from "react"
 
 export default function AdminLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
-
   return (
     <SidebarProvider
       style={
@@ -23,12 +20,11 @@ export default function AdminLayout({
     >
       <AppSidebar />
       <SidebarInset>
-        <SiteHeader/>
-        <main>
-          {children}
-        </main>
+        <SiteHeader />
+        <main>{children}</main>
       </SidebarInset>
+      <ChatBot />
     </SidebarProvider>
-  );
+  )
 }
 

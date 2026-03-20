@@ -1,7 +1,9 @@
 const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
-const { ACTIVITY_STATUS, VALID_STATUS_TRANSITIONS } = require("../../utils/constants");
+const cache = require("../../utils/cache");
+const { ACTIVITY_STATUS, VALID_STATUS_TRANSITIONS, CONFIG_KEYS, ORG_MEMBER_ROLE } = require("../../utils/constants");
 const { isAdminOrOrgLeader } = require("../../utils/permissions");
+const { resolveFields, resolveNested } = require("../../utils/s3-helpers");
 
 // ─── Create activity ────────────────────────────────────────────────────────
 
@@ -43,12 +45,16 @@ const createActivity = async (data, userId, roles) => {
     });
   }
 
+  // Invalidate list cache on create
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ACTIVITIES_LIST);
+
   return prisma.activity.findUnique({
     where: { activityId: activity.activityId },
     include: {
       category: true,
       organization: { select: { organizationId: true, organizationName: true } },
       activityTeamRule: true,
+      registrationForm: { select: { formId: true, title: true, status: true } },
     },
   });
 };
@@ -60,6 +66,17 @@ const getActivities = async ({
   activityStatus, activityType, startDate, endDate,
   sortBy = "createdAt", sortOrder = "desc",
 }) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+
+  // ── Redis cache check ──
+  const cacheKey = cache.buildListKey(cache.REDIS_PREFIX.ACTIVITIES_LIST, {
+    page: pageNum, limit: limitNum, search, categoryId, organizationId,
+    activityStatus, activityType, startDate, endDate, sortBy, sortOrder,
+  });
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const where = {
     isDeleted: false,
     ...(search && { activityName: { contains: search, mode: "insensitive" } }),
@@ -87,27 +104,45 @@ const getActivities = async ({
         },
       },
       orderBy: { [sortBy]: sortOrder },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
     }),
     prisma.activity.count({ where }),
   ]);
 
-  return {
+  // Resolve S3 presigned URLs for images
+  for (const item of data) {
+    await resolveFields(item, ["coverImage"]);
+    await resolveNested(item, "organization", ["logoUrl"]);
+  }
+
+  const result = {
     data,
-    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
+
+  // ── Cache result (5 min TTL) ──
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 // ─── Get activity by ID ─────────────────────────────────────────────────────
 
 const getActivityById = async (activityId) => {
+  // ── Redis cache check ──
+  const cacheKey = `${cache.REDIS_PREFIX.ACTIVITY_DETAIL}${activityId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const activity = await prisma.activity.findFirst({
     where: { activityId: Number(activityId), isDeleted: false },
     include: {
       category: true,
       organization: { select: { organizationId: true, organizationName: true, logoUrl: true } },
       activityTeamRule: true,
+      registrationForm: {
+        select: { formId: true, title: true, status: true, description: true },
+      },
       _count: {
         select: {
           registrations: { where: { isDeleted: false } },
@@ -117,6 +152,12 @@ const getActivityById = async (activityId) => {
   });
 
   if (!activity) throw new AppError("ACTIVITY_NOT_FOUND");
+
+  await resolveFields(activity, ["coverImage"]);
+  await resolveNested(activity, "organization", ["logoUrl"]);
+
+  // ── Cache result (5 min TTL) ──
+  await cache.set(cacheKey, activity, 300);
   return activity;
 };
 
@@ -150,6 +191,10 @@ const updateActivity = async (activityId, data, userId, roles) => {
     where: { activityId: Number(activityId) },
     data: { ...updateData, updatedBy: userId, updatedAt: new Date() },
   });
+
+  // Invalidate caches
+  await cache.del(`${cache.REDIS_PREFIX.ACTIVITY_DETAIL}${activityId}`);
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ACTIVITIES_LIST);
 
   // Upsert team rule
   if (teamRule) {
@@ -194,10 +239,179 @@ const updateActivityStatus = async (activityId, newStatus, userId, roles) => {
     throw new AppError("ACTIVITY_INVALID_TRANSITION");
   }
 
-  return prisma.activity.update({
+  // DRAFT → PENDING_REVIEW: only organization_leader (not pure admin)
+  if (
+    activity.activityStatus === ACTIVITY_STATUS.DRAFT &&
+    newStatus === ACTIVITY_STATUS.PENDING_REVIEW &&
+    !roles.includes("organization_leader")
+  ) {
+    throw new AppError("FORBIDDEN");
+  }
+
+  // PENDING_REVIEW actions (approve/reject): only admin
+  if (activity.activityStatus === ACTIVITY_STATUS.PENDING_REVIEW && !roles.includes("admin")) {
+    throw new AppError("FORBIDDEN");
+  }
+
+  // ── Check system config: skip approval if disabled ──
+  // Inline require to avoid circular dependency (system-config does not import activities)
+  let finalStatus = newStatus;
+
+  if (newStatus === ACTIVITY_STATUS.PENDING_REVIEW) {
+    const { getConfig } = require("../system-config/system-config.service");
+    const requireApproval = await getConfig(
+      CONFIG_KEYS.ACTIVITY_REQUIRE_APPROVAL,
+      activity.organizationId,
+    );
+
+    const approvalEnabled =
+      requireApproval !== null &&
+      typeof requireApproval === "object" &&
+      requireApproval.enabled === true;
+
+    if (!approvalEnabled) {
+      // Approval not required — publish directly
+      finalStatus = ACTIVITY_STATUS.PUBLISHED;
+    }
+  }
+
+  // Invalidate caches
+  await cache.del(`${cache.REDIS_PREFIX.ACTIVITY_DETAIL}${activityId}`);
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ACTIVITIES_LIST);
+
+  const updated = await prisma.activity.update({
     where: { activityId: Number(activityId) },
-    data: { activityStatus: newStatus, updatedBy: userId, updatedAt: new Date() },
+    data: { activityStatus: finalStatus, updatedBy: userId, updatedAt: new Date() },
   });
+
+  // Notify admins when org submits for review (only if actually pending)
+  if (finalStatus === ACTIVITY_STATUS.PENDING_REVIEW) {
+    const { sendBulkNotification } = require("../notifications/notifications.service");
+    try {
+      const adminRoleRow = await prisma.role.findUnique({ where: { code: "admin" } });
+      if (adminRoleRow) {
+        const adminUserIds = await prisma.userRole.findMany({
+          where: { roleId: adminRoleRow.roleId, isDeleted: false },
+          select: { userId: true },
+        });
+        if (adminUserIds.length > 0) {
+          await sendBulkNotification(
+            {
+              title: `Yêu cầu duyệt hoạt động`,
+              content: `"${activity.activityName}" đang chờ bạn xét duyệt.`,
+              notificationType: "activity",
+              channels: ["IN_APP"],
+              userIds: adminUserIds.map((r) => r.userId),
+            },
+            userId
+          );
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Notify org members when published (admin approves OR auto-published)
+  if (finalStatus === ACTIVITY_STATUS.PUBLISHED) {
+    const { sendBulkNotification } = require("../notifications/notifications.service");
+    const org = await prisma.organization.findUnique({
+      where: { organizationId: activity.organizationId },
+      select: { organizationName: true },
+    });
+    try {
+      await sendBulkNotification(
+        {
+          title: `Hoạt động mới: ${activity.activityName}`,
+          content: `${org?.organizationName ?? "Tổ chức"} vừa đăng hoạt động mới. Đăng ký ngay!`,
+          notificationType: "activity",
+          channels: ["IN_APP"],
+          organizationId: activity.organizationId,
+        },
+        userId
+      );
+    } catch (_) {}
+  }
+
+  // Notify org members when admin rejects (pending_review -> draft)
+  if (finalStatus === ACTIVITY_STATUS.DRAFT && activity.activityStatus === ACTIVITY_STATUS.PENDING_REVIEW) {
+    const { sendBulkNotification } = require("../notifications/notifications.service");
+    try {
+      await sendBulkNotification(
+        {
+          title: `Hoạt động bị từ chối`,
+          content: `"${activity.activityName}" chưa được duyệt. Vui lòng chỉnh sửa và gửi lại.`,
+          notificationType: "activity",
+          channels: ["IN_APP"],
+          organizationId: activity.organizationId,
+        },
+        userId
+      );
+    } catch (_) {}
+  }
+
+  return updated;
+};
+
+// ─── Get activities managed by current user (org leader + admin) ─────────────
+//
+// Returns activities that belong to ANY org where the user holds a leader role,
+// PLUS activities the user personally created (covers admins creating for orgs
+// they're not a formal member of).
+
+const getMyOrgActivities = async (userId, { page = 1, limit = 20, activityStatus } = {}) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+
+  // Collect all org IDs where this user is a leader
+  const memberships = await prisma.organizationMember.findMany({
+    where: {
+      userId,
+      isDeleted: false,
+      role: {
+        in: [
+          ORG_MEMBER_ROLE.PRESIDENT,
+          ORG_MEMBER_ROLE.VICE_PRESIDENT,
+          ORG_MEMBER_ROLE.HEAD_OF_DEPARTMENT,
+          ORG_MEMBER_ROLE.VICE_HEAD,
+        ],
+      },
+    },
+    select: { organizationId: true },
+  });
+
+  const orgIds = memberships.map((m) => m.organizationId);
+
+  // Match: in one of their orgs OR personally created (admin fallback)
+  const orgConditions = orgIds.length > 0 ? [{ organizationId: { in: orgIds } }] : [];
+  const where = {
+    isDeleted: false,
+    OR: [...orgConditions, { createdBy: userId }],
+    ...(activityStatus && { activityStatus }),
+  };
+
+  const [data, total] = await Promise.all([
+    prisma.activity.findMany({
+      where,
+      include: {
+        category: { select: { categoryId: true, categoryName: true } },
+        organization: { select: { organizationId: true, organizationName: true, logoUrl: true } },
+        _count: { select: { registrations: { where: { isDeleted: false } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+    }),
+    prisma.activity.count({ where }),
+  ]);
+
+  for (const item of data) {
+    await resolveFields(item, ["coverImage"]);
+    await resolveNested(item, "organization", ["logoUrl"]);
+  }
+
+  return {
+    data,
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+  };
 };
 
 // ─── Soft delete activity ───────────────────────────────────────────────────
@@ -211,6 +425,10 @@ const softDeleteActivity = async (activityId, userId, roles) => {
   const hasPermission = await isAdminOrOrgLeader(roles, activity.organizationId, userId);
   if (!hasPermission) throw new AppError("FORBIDDEN");
 
+  // Invalidate caches
+  await cache.del(`${cache.REDIS_PREFIX.ACTIVITY_DETAIL}${activityId}`);
+  await cache.invalidateByPrefix(cache.REDIS_PREFIX.ACTIVITIES_LIST);
+
   return prisma.activity.update({
     where: { activityId: Number(activityId) },
     data: { isDeleted: true, deletedAt: new Date(), deletedBy: userId },
@@ -220,10 +438,16 @@ const softDeleteActivity = async (activityId, userId, roles) => {
 // ─── Categories ─────────────────────────────────────────────────────────────
 
 const getCategories = async () => {
-  return prisma.activityCategory.findMany({
+  const cached = await cache.get(cache.REDIS_PREFIX.CATEGORIES);
+  if (cached) return cached;
+
+  const result = await prisma.activityCategory.findMany({
     where: { isDeleted: false },
     orderBy: { categoryName: "asc" },
   });
+
+  await cache.set(cache.REDIS_PREFIX.CATEGORIES, result, 600); // 10 min
+  return result;
 };
 
 const createCategory = async (data, createdBy) => {
@@ -278,4 +502,5 @@ module.exports = {
   createCategory,
   createCheckinSession,
   getCheckinSessions,
+  getMyOrgActivities,
 };

@@ -5,20 +5,22 @@ import type { CreateFormPayload, SubmitFormPayload } from "@/types/form/form.typ
 export function useFormList({
   page = 1,
   limit = 20,
-  TrangThai,
+  status,
+  organizationId,
 }: {
   page?: number
   limit?: number
-  TrangThai?: string
+  status?: string
+  organizationId?: number
 } = {}) {
   return useQuery({
-    queryKey: ["forms", { page, limit, TrangThai }],
-    queryFn: () => formService.getFormList({ page, limit, TrangThai }),
+    queryKey: ["forms", { page, limit, status, organizationId }],
+    queryFn: () => formService.getFormList({ page, limit, status, organizationId }),
     staleTime: 1000 * 60 * 2,
   })
 }
 
-export function useFormDetail(id: string) {
+export function useFormDetail(id: string | number) {
   return useQuery({
     queryKey: ["form", id],
     queryFn: () => formService.getFormById(id),
@@ -26,7 +28,7 @@ export function useFormDetail(id: string) {
   })
 }
 
-export function useFormPublic(id: string) {
+export function useFormPublic(id: string | number) {
   return useQuery({
     queryKey: ["form-public", id],
     queryFn: () => formService.getFormPublic(id),
@@ -44,7 +46,7 @@ export function useCreateForm() {
   })
 }
 
-export function useUpdateForm(id: string) {
+export function useUpdateForm(id: string | number) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: Partial<CreateFormPayload>) => formService.updateForm(id, data),
@@ -58,17 +60,17 @@ export function useUpdateForm(id: string) {
 export function useDeleteForm() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => formService.deleteForm(id),
+    mutationFn: (id: string | number) => formService.deleteForm(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["forms"] })
     },
   })
 }
 
-export function useChangeFormStatus(id: string) {
+export function useChangeFormStatus(id: string | number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (TrangThai: string) => formService.changeFormStatus(id, TrangThai),
+    mutationFn: (status: string) => formService.changeFormStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["forms"] })
       queryClient.invalidateQueries({ queryKey: ["form", id] })
@@ -76,7 +78,7 @@ export function useChangeFormStatus(id: string) {
   })
 }
 
-export function useSubmitForm(id: string) {
+export function useSubmitForm(id: string | number) {
   return useMutation({
     mutationFn: (data: SubmitFormPayload) => formService.submitForm(id, data),
   })
@@ -86,25 +88,30 @@ export function useFormResponses({
   id,
   page = 1,
   limit = 20,
-  TrangThai,
+  status,
 }: {
-  id: string
+  id: string | number
   page?: number
   limit?: number
-  TrangThai?: string
+  status?: string
 }) {
   return useQuery({
-    queryKey: ["form-responses", id, { page, limit, TrangThai }],
-    queryFn: () => formService.getFormResponses({ id, page, limit, TrangThai }),
+    queryKey: ["form-responses", id, { page, limit, status }],
+    queryFn: () => formService.getFormResponses({ id, page, limit, status }),
     enabled: !!id,
   })
 }
 
-export function useApproveResponse(formId: string) {
+export function useApproveResponse(formId: string | number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ responseId, TrangThai }: { responseId: string; TrangThai: "DA_DUYET" | "TU_CHOI" }) =>
-      formService.approveResponse(formId, responseId, TrangThai),
+    mutationFn: ({
+      responseId,
+      status,
+    }: {
+      responseId: string | number
+      status: "approved" | "rejected"
+    }) => formService.approveResponse(formId, responseId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["form-responses", formId] })
     },

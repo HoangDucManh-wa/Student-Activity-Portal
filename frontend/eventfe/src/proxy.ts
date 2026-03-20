@@ -1,49 +1,40 @@
-import { cookies } from 'next/headers';
 import { NextResponse, NextRequest } from 'next/server'
-import { http } from './configs/http.comfig';
-import { envConfig } from './configs/env.config';
 
-const publicPath = ['/auth']
+const publicPaths = ['/auth']
+
+// Routes that require specific roles
+const adminPaths = ['/admin']
+const orgPaths = ['/organization']
 
 export async function proxy(request: NextRequest) {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get('access_token')
-  const refreshToken = cookieStore.get('refresh_token')?.value
-  const { pathname } = request.nextUrl;
+  const accessToken = request.cookies.get('access_token')
+  const role = request.cookies.get('user_role')?.value ?? 'student'
+  const { pathname } = request.nextUrl
 
-  if (accessToken && publicPath.includes(pathname)) {
+  const isPublic = publicPaths.some(
+    (p) => pathname === p || pathname.startsWith(p + '/')
+  )
+  const isAdmin = adminPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  const isOrg = orgPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
+
+  // Authenticated user visiting login page → redirect to their dashboard
+  if (accessToken && isPublic) {
+    if (role === 'admin') return NextResponse.redirect(new URL('/admin', request.url))
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  if (!accessToken && refreshToken) {
-    try {
-      const res: any = await http.post(`${envConfig.NEXT_PUBLIC_API_URL}/auth/refresh`, {
-        refreshToken
-      })
+  // Unauthenticated user visiting protected page → redirect to login
+  if (!accessToken && !isPublic) {
+    return NextResponse.redirect(new URL('/auth', request.url))
+  }
 
-      if ("code" in res) {
-        cookieStore.delete('refresh_token')
-        return NextResponse.redirect(new URL('/auth', request.url))
-      }
-
-      const response = NextResponse.redirect(request.url)
-      
-      response.cookies.set('access_token', res.accessToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: Number(envConfig.COOKIE_ACCESS_TOKEN_MAX_AGE),
-        path: '/'
-      })
-      response.cookies.set('refresh_token', res.refreshToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: Number(envConfig.COOKIE_REFRESH_TOKEN_MAX_AGE),
-        path: '/'
-      })
-
-      return response
-    } catch {
-      return NextResponse.redirect(new URL('/auth', request.url))
+  // Role-based protection
+  if (accessToken) {
+    if (isAdmin && role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+    if (isOrg && role !== 'organization_leader' && role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url))
     }
   }
 
@@ -51,5 +42,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/auth'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
 }

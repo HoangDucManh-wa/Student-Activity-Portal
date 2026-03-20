@@ -104,6 +104,24 @@ const removeMember = async (req, res, next) => {
   }
 };
 
+const getMyOrganization = async (req, res, next) => {
+  try {
+    const result = await organizationsService.getMyOrganization(req.user.userId);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getOrgStats = async (req, res, next) => {
+  try {
+    const result = await organizationsService.getOrgStats(req.params.id);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createOrganization,
   getOrganizations,
@@ -114,4 +132,6 @@ module.exports = {
   addMember,
   updateMemberRole,
   removeMember,
+  getMyOrganization,
+  getOrgStats,
 };

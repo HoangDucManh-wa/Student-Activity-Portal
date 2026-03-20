@@ -73,7 +73,8 @@ const createForm = async (payload, createdBy) => {
         responseLimit,
         openAt: openAt ? new Date(openAt) : null,
         closeAt: closeAt ? new Date(closeAt) : null,
-        activityId,
+        activityId: activityId ?? null,
+        organizationId: payload.organizationId ?? null,
         createdBy,
       },
     });
@@ -142,7 +143,7 @@ const createForm = async (payload, createdBy) => {
 
 // ─── List forms ───────────────────────────────────────────────────────────────
 
-const getFormList = async ({ page = 1, limit = 20, status, activityId }) => {
+const getFormList = async ({ page = 1, limit = 20, status, activityId, organizationId }) => {
   const pageNum = Number(page) || 1;
   const limitNum = Number(limit) || 20;
 
@@ -150,6 +151,7 @@ const getFormList = async ({ page = 1, limit = 20, status, activityId }) => {
     isDeleted: false,
     ...(status && { status }),
     ...(activityId && { activityId: Number(activityId) }),
+    ...(organizationId && { organizationId: Number(organizationId) }),
   };
 
   const [data, total] = await Promise.all([

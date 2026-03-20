@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -13,6 +14,11 @@ const clubApplicationsRoutes = require("./modules/club-applications/club-applica
 const notificationsRoutes = require("./modules/notifications/notifications.route");
 const adminRoutes = require("./modules/admin/admin.route");
 const aiRoutes = require("./modules/ai/ai.route");
+const chatSessionsRoutes = require("./modules/chat-sessions/chat-sessions.route");
+const uploadRoutes = require("./modules/uploads/upload.route");
+const systemConfigRoutes = require("./modules/system-config/system-config.route");
+const universityRoutes = require("./modules/university/university.route");
+const formsRoutes = require("./modules/forms/forms.route");
 
 const app = express();
 
@@ -39,6 +45,9 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Static files (legacy — uploads now go through S3) ──────────────────────
+// Removed: app.use("/uploads", express.static(...));
+
 // ─── Logging (dev only) ───────────────────────────────────────────────────────
 if (process.env.NODE_ENV === "development") {
   app.use(require("morgan")("dev"));
@@ -63,6 +72,11 @@ app.use("/api/club-applications", clubApplicationsRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/chat-sessions", chatSessionsRoutes);
+app.use("/api/uploads", uploadRoutes);
+app.use("/api/system-config", systemConfigRoutes);
+app.use("/api/university", universityRoutes);
+app.use("/api/forms", formsRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

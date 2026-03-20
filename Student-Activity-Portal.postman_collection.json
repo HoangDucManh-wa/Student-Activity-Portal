@@ -16,7 +16,11 @@
     { "key": "registrationId", "value": "1", "type": "string" },
     { "key": "applicationId", "value": "1", "type": "string" },
     { "key": "checkinSessionId", "value": "1", "type": "string" },
-    { "key": "memberId", "value": "2", "type": "string" }
+    { "key": "memberId", "value": "2", "type": "string" },
+    { "key": "chatSessionId", "value": "1", "type": "string" },
+    { "key": "uploadKey", "value": "avatars/sample.jpg", "type": "string" },
+    { "key": "uploadFolder", "value": "avatars", "type": "string" },
+    { "key": "userRole", "value": "student", "type": "string" }
   ],
   "item": [
     {
@@ -122,6 +126,40 @@
               "path": ["api", "auth", "login"]
             },
             "description": "Login as admin. Token + userId auto-saved."
+          }
+        },
+        {
+          "name": "Login (Organization)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  if (res.data.accessToken) pm.collectionVariables.set('accessToken', res.data.accessToken);",
+                  "  if (res.data.refreshToken) pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+                  "  if (res.data.user && res.data.user.userId) pm.collectionVariables.set('userId', String(res.data.user.userId));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"orgleader@test.com\",\n  \"password\": \"Org@123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as organization role user. Token + userId auto-saved."
           }
         },
         {
@@ -376,6 +414,31 @@
               ]
             },
             "description": "List organizations with search/filter/pagination."
+          }
+        },
+        {
+          "name": "Get My Organization (Org/Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "organizations", "my"]
+            },
+            "description": "Only organization_leader or admin can access."
+          }
+        },
+        {
+          "name": "Get Organization Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "organizations", "{{organizationId}}", "stats"]
+            }
           }
         },
         {
@@ -1380,6 +1443,199 @@
       ]
     },
     {
+      "name": "Chat Sessions",
+      "item": [
+        {
+          "name": "Create Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.sessionId) {",
+                  "  pm.collectionVariables.set('chatSessionId', String(res.data.sessionId));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tu van hoat dong\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat-sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat-sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get My Sessions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat-sessions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat-sessions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat-sessions/{{chatSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat-sessions", "{{chatSessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Messages",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Co su kien nao trong tuan nay?\" },\n    { \"role\": \"model\", \"content\": \"Mình sẽ giúp bạn tìm nhé.\" }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat-sessions/{{chatSessionId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat-sessions", "{{chatSessionId}}", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat-sessions/{{chatSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat-sessions", "{{chatSessionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "Get Presigned Upload URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"avatar.jpg\",\n  \"fileType\": \"image/jpeg\",\n  \"folder\": \"{{uploadFolder}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/uploads/presign",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "uploads", "presign"]
+            }
+          }
+        },
+        {
+          "name": "Get Presigned Read URL",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/uploads/url?key={{uploadKey}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "uploads", "url"],
+              "query": [
+                { "key": "key", "value": "{{uploadKey}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Presigned Read URLs (Batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keys\": [\n    \"{{uploadKey}}\"\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/uploads/urls",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "uploads", "urls"]
+            }
+          }
+        },
+        {
+          "name": "Direct Upload (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "folder", "value": "avatars", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/uploads/direct",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "uploads", "direct"]
+            }
+          }
+        },
+        {
+          "name": "Delete Upload",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/uploads?key={{uploadKey}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "uploads"],
+              "query": [
+                { "key": "key", "value": "{{uploadKey}}" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin",
       "item": [
         {
@@ -1407,6 +1663,18 @@
           }
         },
         {
+          "name": "Registration Trend Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats/registrations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "stats", "registrations"]
+            }
+          }
+        },
+        {
           "name": "Create User",
           "request": {
             "method": "POST",
@@ -1416,14 +1684,15 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userName\": \"Nguyen Van B\",\n  \"email\": \"nguyenvanb@example.com\",\n  \"password\": \"Pass@1234\",\n  \"university\": \"Dai hoc Bach Khoa\",\n  \"studentId\": \"SV002\",\n  \"phoneNumber\": \"0987654321\",\n  \"role\": \"student\"\n}",
+              "raw": "{\n  \"userName\": \"Nguyen Van B\",\n  \"email\": \"nguyenvanb@example.com\",\n  \"password\": \"Pass@1234\",\n  \"university\": \"Dai hoc Bach Khoa\",\n  \"studentId\": \"SV002\",\n  \"phoneNumber\": \"0987654321\",\n  \"role\": \"{{userRole}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
               "raw": "{{baseUrl}}/api/admin/users",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "users"]
-            }
+            },
+            "description": "3 role groups: student, admin, organization (set userRole = organization_leader for current backend)."
           }
         },
         {
