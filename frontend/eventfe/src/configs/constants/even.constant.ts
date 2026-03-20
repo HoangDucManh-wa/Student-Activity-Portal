@@ -1,9 +1,6 @@
 export const EVENT_STATUS = [
-  { id: "open", name: "Đang mở" },
-  { id: "close", name: "Đã đóng" }
-]
-
-export const EVENT_CATEGORIES = [
-  { id: "academic", name: "Học thuật" },
-  { id: "non-academic", name: "Phi học thuật" }
+  { id: "published", name: "Đang mở đăng ký" },
+  { id: "ongoing", name: "Đang diễn ra" },
+  { id: "completed", name: "Đã kết thúc" },
+  { id: "cancelled", name: "Đã hủy" },
 ]

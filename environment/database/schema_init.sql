@@ -1,272 +1,528 @@
 -- ==========================================
--- CÁC BẢNG (ID do Backend tự sinh và lưu dưới dạng VARCHAR)
--- Lưu ý: tên cột dùng double quotes để PostgreSQL giữ nguyên mixed case
+-- RESET DATABASE (FOR DEVELOPMENT)
+-- Drop tables in reverse dependency order
 -- ==========================================
 
--- Bảng NGUOI_DUNG
-CREATE TABLE nguoi_dung (
-    "MaNguoiDung" VARCHAR(50) PRIMARY KEY,
-    "TenNguoiDung" VARCHAR(255) NOT NULL,
-    "MaSV" VARCHAR(50),
-    "SDT" VARCHAR(20),
-    "Email" VARCHAR(255) UNIQUE,
-    "LoaiTaiKhoan" VARCHAR(50),
-    "TrangThai" VARCHAR(20),
-    "MatKhau" VARCHAR(255) NOT NULL,
-    "Avatar" TEXT,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+DROP TABLE IF EXISTS user_roles CASCADE;
+
+DROP TABLE IF EXISTS roles CASCADE;
+
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS system_logs CASCADE;
+DROP TABLE IF EXISTS organization_documents CASCADE;
+DROP TABLE IF EXISTS reviews CASCADE;
+
+
+DROP TABLE IF EXISTS team_members CASCADE;
+DROP TABLE IF EXISTS organization_members CASCADE;
+
+DROP TABLE IF EXISTS registrations CASCADE;
+
+DROP TABLE IF EXISTS activities CASCADE;
+DROP TABLE IF EXISTS activity_categories CASCADE;
+
+DROP TABLE IF EXISTS organizations CASCADE;
+
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS club_applications CASCADE;
+
+DROP TABLE IF EXISTS registration_checkins CASCADE;
+DROP TABLE IF EXISTS activity_checkins CASCADE;
+DROP TABLE IF EXISTS activity_team_rules CASCADE;
+
+
+-- ==========================================
+-- TABLES
+-- Note: Column names use double quotes to preserve case
+-- ==========================================
+
+-- USERS
+CREATE TABLE users (
+    "userId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "userName" VARCHAR(255) NOT NULL,
+    "studentId" VARCHAR(50),
+    "university" VARCHAR(255) NOT NULL,
+
+    "phoneNumber" VARCHAR(20) UNIQUE,
+    "email" VARCHAR(255) UNIQUE NOT NULL,
+    "password" VARCHAR(255) NOT NULL,
+
+    "status" VARCHAR(20) DEFAULT 'active'
+        CHECK ("status" IN ('active','inactive','banned','suspended')),
+
+    "avatarUrl" TEXT,
+
+    -- audit
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId"),
+
+    UNIQUE("studentId","university")
 );
 
--- Bảng TO_CHUC
-CREATE TABLE to_chuc (
-    "MaToChuc" VARCHAR(50) PRIMARY KEY,
-    "TenToChuc" VARCHAR(255) NOT NULL,
-    "LoaiToChuc" VARCHAR(50),
-    "Logo" TEXT,
-    "MoTa" TEXT,
-    "AnhBia" TEXT,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- ORGANIZATIONS
+CREATE TABLE organizations (
+    "organizationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "organizationName" VARCHAR(255) NOT NULL,
+    "organizationType" VARCHAR(50) NOT NULL
+        CHECK ("organizationType" IN ('university','club','department','company')),
+
+    "logoUrl" TEXT,
+    "coverImageUrl" TEXT,
+    "description" TEXT,
+
+    -- audit
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng DANH_MUC_HOAT_DONG
-CREATE TABLE danh_muc_hoat_dong (
-    "MaDanhMuc" VARCHAR(50) PRIMARY KEY,
-    "TenDanhMuc" VARCHAR(255) NOT NULL,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- ORGANIZATION MEMBERS
+CREATE TABLE organization_members (
+    "userId" INT REFERENCES users("userId"),
+    "organizationId" INT REFERENCES organizations("organizationId"),
+
+    "role" VARCHAR(50)
+        CHECK ("role" IN ('president','vice_president','head_of_department','vice_head','member')),
+    "joinDate" DATE,
+
+    PRIMARY KEY ("userId", "organizationId"),
+
+    -- audit
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng HOAT_DONG
-CREATE TABLE hoat_dong (
-    "MaHoatDong" VARCHAR(50) PRIMARY KEY,
-    "TenHoatDong" VARCHAR(255) NOT NULL,
-    "DiaDiem" VARCHAR(255),
-    "ThoiGianBatDau" TIMESTAMP,
-    "ThoiGianKetThuc" TIMESTAMP,
-    "HanDangKy" TIMESTAMP,
-    "SoLuongNguoiToiDa" INT,
-    "DangKyNhom" BOOLEAN,
-    "TrangThaiPheDuyet" VARCHAR(50),
-    "AnhBia" TEXT,
-    "MoTa" TEXT,
-    "MaToChuc" VARCHAR(50) NOT NULL REFERENCES to_chuc("MaToChuc"),
-    "MaDanhMuc" VARCHAR(50) NOT NULL REFERENCES danh_muc_hoat_dong("MaDanhMuc"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- ACTIVITY CATEGORIES
+CREATE TABLE activity_categories (
+    "categoryId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "categoryName" VARCHAR(255) UNIQUE NOT NULL,
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng PHIEU_DANG_KY
-CREATE TABLE phieu_dang_ky (
-    "MaPhieu" VARCHAR(50) PRIMARY KEY,
-    "TrangThai" VARCHAR(50),
-    "ThoiGianDangKy" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "LoaiDangKy" VARCHAR(50),
-    "MaNguoiDung" VARCHAR(50) NOT NULL REFERENCES nguoi_dung("MaNguoiDung"),
-    "MaHoatDong" VARCHAR(50) NOT NULL REFERENCES hoat_dong("MaHoatDong"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- ACTIVITIES
+CREATE TABLE activities (
+    "activityId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    -- Basic information
+    "activityName" VARCHAR(255) NOT NULL,
+    "description" TEXT,
+    "coverImage" TEXT,
+    "location" VARCHAR(255),
+
+    -- Activity type
+    "activityType" VARCHAR(20) NOT NULL
+        CHECK ("activityType" IN ('program','competition','recruitment')),
+
+    -- Team configuration
+    "teamMode" VARCHAR(20) DEFAULT 'individual'
+        CHECK ("teamMode" IN ('individual','team','both')),
+
+    -- Time
+    "startTime" TIMESTAMP,
+    "endTime" TIMESTAMP,
+    "registrationDeadline" TIMESTAMP,
+
+    CONSTRAINT check_activity_time
+        CHECK ("endTime" IS NULL OR "endTime" > "startTime"),
+
+    CONSTRAINT check_registration_deadline
+        CHECK (
+            "registrationDeadline" IS NULL
+            OR "startTime" IS NULL
+            OR "registrationDeadline" <= "startTime"
+        ),
+
+    -- Participant limits
+    "minParticipants" INT,
+    "maxParticipants" INT,
+
+    CONSTRAINT check_participant_range
+        CHECK (
+            "maxParticipants" IS NULL
+            OR "minParticipants" IS NULL
+            OR "maxParticipants" >= "minParticipants"
+        ),
+
+    -- Status
+    "activityStatus" VARCHAR(20) DEFAULT 'draft'
+        CHECK ("activityStatus" IN (
+            'draft',
+            'published',
+            'running',
+            'finished',
+            'cancelled'
+        )),
+
+    -- Prize (optional for competitions)
+    "prize" TEXT,
+
+    -- Relationships
+    "organizationId" INT NOT NULL
+        REFERENCES organizations("organizationId"),
+
+    "categoryId" INT NOT NULL
+        REFERENCES activity_categories("categoryId"),
+
+    -- Audit
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+
+    -- Soft delete
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "deletedAt" TIMESTAMP,
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng THANH_VIEN_TO_CHUC
-CREATE TABLE thanh_vien_to_chuc (
-    "MaNguoiDung" VARCHAR(50) REFERENCES nguoi_dung("MaNguoiDung"),
-    "MaToChuc" VARCHAR(50) REFERENCES to_chuc("MaToChuc"),
-    "ChucVu" VARCHAR(100),
-    "NgayThamGia" DATE,
-    PRIMARY KEY ("MaNguoiDung", "MaToChuc"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+CREATE TABLE activity_checkins (
+    "checkinId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "activityId" INT NOT NULL
+        REFERENCES activities("activityId") ON DELETE CASCADE,
+
+    "checkInTime" TIMESTAMP,
+    "checkOutTime" TIMESTAMP,
+
+    CONSTRAINT check_checkin_time
+        CHECK (
+
+    "checkInTime" IS NULL
+    OR "checkOutTime" IS NULL
+    OR "checkInTime" < "checkOutTime"
+)
 );
 
--- Bảng THANH_VIEN_NHOM
-CREATE TABLE thanh_vien_nhom (
-    "MaPhieu" VARCHAR(50) REFERENCES phieu_dang_ky("MaPhieu"),
-    "MaNguoiDung" VARCHAR(50) REFERENCES nguoi_dung("MaNguoiDung"),
-    "VaiTro" VARCHAR(100),
-    PRIMARY KEY ("MaPhieu", "MaNguoiDung"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+CREATE TABLE activity_team_rules (
+    "ruleId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "activityId" INT UNIQUE
+        REFERENCES activities("activityId") ON DELETE CASCADE,
+
+    "minTeamMembers" INT,
+    "maxTeamMembers" INT,
+
+    CHECK (
+        "maxTeamMembers" IS NULL
+        OR "minTeamMembers" IS NULL
+        OR "maxTeamMembers" >= "minTeamMembers"
+        
+    )
 );
 
--- Bảng DOT_TUYEN_CLB
-CREATE TABLE dot_tuyen_clb (
-    "MaDot" VARCHAR(50) PRIMARY KEY,
-    "TenDot" VARCHAR(255) NOT NULL,
-    "MoTa" TEXT,
-    "NgayBatDau" DATE,
-    "NgayKetThuc" DATE,
-    "TrangThai" VARCHAR(50),
-    "MaToChuc" VARCHAR(50) NOT NULL REFERENCES to_chuc("MaToChuc"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- REGISTRATIONS
+CREATE TABLE registrations (
+    "registrationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "teamName" VARCHAR(255) NOT NULL,
+     "isLookingForTeam" BOOLEAN,
+
+    "status" VARCHAR(50) DEFAULT 'pending'
+        CHECK ("status" IN ('pending','approved','rejected','cancelled')),
+
+    "registrationTime" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    "registrationType" VARCHAR(50) DEFAULT 'individual'
+        CHECK ("registrationType" IN ('individual','group')),
+
+    "userId" INT NOT NULL REFERENCES users("userId"),
+    "activityId" INT NOT NULL REFERENCES activities("activityId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId"),
+
+    UNIQUE("userId","activityId")
 );
 
--- Bảng DON_UNG_TUYEN
-CREATE TABLE don_ung_tuyen (
-    "MaDon" VARCHAR(50) PRIMARY KEY,
-    "CauTraLoiPhongVan" TEXT,
-    "NgayNop" DATE DEFAULT CURRENT_DATE,
-    "LichPhongVan" TIMESTAMP,
-    "KetQuaPhongVan" VARCHAR(100),
-    "GhiChu" TEXT,
-    "MaDot" VARCHAR(50) NOT NULL REFERENCES dot_tuyen_clb("MaDot"),
-    "MaNguoiDung" VARCHAR(50) NOT NULL REFERENCES nguoi_dung("MaNguoiDung"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+CREATE TABLE registration_checkins (
+    "checkinId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "registrationId" INT NOT NULL
+        REFERENCES registrations("registrationId") ON DELETE CASCADE,
+
+    "activityCheckinId" INT
+        REFERENCES activity_checkins("checkinId"),
+
+    "checkInTime" TIMESTAMP,
+    "checkOutTime" TIMESTAMP,
+
+    CONSTRAINT check_checkin_time
+        CHECK (
+            "checkOutTime" IS NULL
+            OR "checkOutTime" >= "checkInTime"
+        ),
+
+    UNIQUE ("registrationId","activityCheckinId")
 );
 
--- Bảng DANH_GIA
-CREATE TABLE danh_gia (
-    "MaDanhGia" VARCHAR(50) PRIMARY KEY,
-    "SoSao" INT CHECK ("SoSao" >= 1 AND "SoSao" <= 5),
-    "NhanXet" TEXT,
-    "ThoiGianDanhGia" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "MaPhieu" VARCHAR(50) UNIQUE NOT NULL REFERENCES phieu_dang_ky("MaPhieu"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- TEAM MEMBERS
+CREATE TABLE team_members (
+    "registrationId" INT NOT NULL REFERENCES registrations("registrationId"),
+    "userId" INT NOT NULL REFERENCES users("userId"),
+
+    "role" VARCHAR(50)
+        CHECK ("role" IN ('leader','member')),
+
+    PRIMARY KEY ("registrationId","userId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng CHI_TIET_DIEM_DANH
-CREATE TABLE chi_tiet_diem_danh (
-    "MaPhieu" VARCHAR(50) PRIMARY KEY REFERENCES phieu_dang_ky("MaPhieu"),
-    "ThoiGianCheckin" TIMESTAMP,
-    "ThoiGianCheckout" TIMESTAMP,
-    "MinhChung" TEXT,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+CREATE TABLE club_applications (
+    "applicationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "submittedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "interviewTime" TIMESTAMP,
+    "result" VARCHAR(50)
+        CHECK ("result" IN ('pending','interview','accepted','rejected'))
+        DEFAULT 'pending',
+    "note" TEXT,
+    "activityId" INT NOT NULL
+        REFERENCES activities("activityId"),
+    "userId" INT NOT NULL
+        REFERENCES users("userId"),
+
+    UNIQUE("activityId","userId"),
+
+    -- audit
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng TAI_LIEU_TO_CHUC
-CREATE TABLE tai_lieu_to_chuc (
-    "MaTaiLieu" VARCHAR(50) PRIMARY KEY,
-    "TenTaiLieu" VARCHAR(255) NOT NULL,
-    "DuongDan" TEXT NOT NULL,
-    "PhanLoai" VARCHAR(50),
-    "MaToChuc" VARCHAR(50) NOT NULL REFERENCES to_chuc("MaToChuc"),
-    "MaNguoiDung" VARCHAR(50) NOT NULL REFERENCES nguoi_dung("MaNguoiDung"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- SYSTEM LOGS
+CREATE TABLE system_logs (
+    "logId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "action" VARCHAR(255),
+    "executionTime" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "oldData" TEXT,
+    "newData" TEXT,
+
+    "userId" INT NOT NULL REFERENCES users("userId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng NHAT_KY_HE_THONG
-CREATE TABLE nhat_ky_he_thong (
-    "MaNhatKy" VARCHAR(50) PRIMARY KEY,
-    "HanhDong" VARCHAR(255),
-    "ThoiGianThucHien" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "DuLieuCu" TEXT,
-    "DuLieuMoi" TEXT,
-    "MaNguoiDung" VARCHAR(50) NOT NULL REFERENCES nguoi_dung("MaNguoiDung"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- NOTIFICATIONS
+CREATE TABLE notifications (
+    "notificationId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "title" VARCHAR(255) NOT NULL,
+    "content" TEXT,
+    "notificationTime" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    "status" VARCHAR(50) DEFAULT 'unread'
+        CHECK ("status" IN ('unread','read')),
+
+    "notificationType" VARCHAR(50)
+        CHECK ("notificationType" IN ('activity','registration','system')),
+
+    "userId" INT NOT NULL REFERENCES users("userId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
--- Bảng THONG_BAO
-CREATE TABLE thong_bao (
-    "MaThongBao" VARCHAR(50) PRIMARY KEY,
-    "TieuDe" VARCHAR(255),
-    "NoiDung" TEXT,
-    "ThoiGianThongBao" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "TrangThai" VARCHAR(50),
-    "LoaiThongBao" VARCHAR(50),
-    "MaNguoiDung" VARCHAR(50) NOT NULL REFERENCES nguoi_dung("MaNguoiDung"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
+-- ROLES
+CREATE TABLE roles (
+    "roleId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "code" VARCHAR(50) UNIQUE NOT NULL
+        CHECK ("code" IN (
+            'admin',
+            'student',
+            'organization_leader',
+            'organization_member'
+        )),
+
+    "roleName" VARCHAR(255) UNIQUE NOT NULL,
+    "description" TEXT,
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
+);
+
+-- USER ROLES
+CREATE TABLE user_roles (
+    "userId" INT NOT NULL REFERENCES users("userId"),
+    "roleId" INT NOT NULL REFERENCES roles("roleId"),
+
+    PRIMARY KEY ("userId","roleId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
+);
+
+-- REVIEWS
+CREATE TABLE reviews (
+    "reviewId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "rating" INT NOT NULL CHECK ("rating" BETWEEN 1 AND 5),
+    "comment" TEXT,
+    "reviewTime" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    "registrationId" INT UNIQUE NOT NULL
+        REFERENCES registrations("registrationId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
+);
+
+-- ORGANIZATION DOCUMENTS
+CREATE TABLE organization_documents (
+    "documentId" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+    "documentName" VARCHAR(255) NOT NULL,
+    "fileUrl" TEXT NOT NULL,
+    "category" VARCHAR(50),
+
+    "organizationId" INT NOT NULL REFERENCES organizations("organizationId"),
+    "userId" INT NOT NULL REFERENCES users("userId"),
+
+    "isDeleted" BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP,
+
+    "createdBy" INT REFERENCES users("userId"),
+    "updatedBy" INT REFERENCES users("userId"),
+    "deletedBy" INT REFERENCES users("userId")
 );
 
 -- ==========================================
--- RBAC (Role-Based Access Control)
+-- INDEXES (Performance Optimization)
 -- ==========================================
 
--- Bảng VAI_TRO
-CREATE TABLE vai_tro (
-    "MaVaiTro" VARCHAR(50) PRIMARY KEY,
-    "MaCode" VARCHAR(50) UNIQUE NOT NULL,
-    "TenVaiTro" VARCHAR(255) NOT NULL,
-    "MoTa" TEXT,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
-);
+-- USERS
+CREATE INDEX idx_users_email
+    ON users("email");
 
--- Bảng QUYEN
-CREATE TABLE quyen (
-    "MaQuyen" VARCHAR(50) PRIMARY KEY,
-    "MaCode" VARCHAR(50) UNIQUE NOT NULL,
-    "TenQuyen" VARCHAR(255) NOT NULL,
-    "MoTa" TEXT,
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
-);
+CREATE INDEX idx_users_student
+    ON users("studentId","university");
 
--- Bảng VAI_TRO_QUYEN (Junction N-N)
-CREATE TABLE vai_tro_quyen (
-    "MaVaiTro" VARCHAR(50) REFERENCES vai_tro("MaVaiTro"),
-    "MaQuyen" VARCHAR(50) REFERENCES quyen("MaQuyen"),
-    PRIMARY KEY ("MaVaiTro", "MaQuyen"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
-);
+-- ORGANIZATION MEMBERS
+CREATE INDEX idx_org_members_organization
+    ON organization_members("organizationId");
 
--- Bảng NGUOI_DUNG_VAI_TRO (Junction N-N)
-CREATE TABLE nguoi_dung_vai_tro (
-    "MaNguoiDung" VARCHAR(50) REFERENCES nguoi_dung("MaNguoiDung"),
-    "MaVaiTro" VARCHAR(50) REFERENCES vai_tro("MaVaiTro"),
-    PRIMARY KEY ("MaNguoiDung", "MaVaiTro"),
-    -- Audit fields
-    "isDelete" BOOLEAN DEFAULT FALSE,
-    "createAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "createBy" VARCHAR(50),
-    "deleteBy" VARCHAR(50)
-);
+CREATE INDEX idx_org_members_user
+    ON organization_members("userId");
+
+-- ACTIVITIES
+CREATE INDEX idx_activities_organization
+    ON activities("organizationId");
+
+CREATE INDEX idx_activities_category
+    ON activities("categoryId");
+
+-- REGISTRATIONS
+CREATE INDEX idx_registrations_activity
+    ON registrations("activityId");
+
+CREATE INDEX idx_registrations_user
+    ON registrations("userId");
+
+-- TEAM MEMBERS
+CREATE INDEX idx_team_members_registration
+    ON team_members("registrationId");
+
+CREATE INDEX idx_team_members_user
+    ON team_members("userId");
+
+-- NOTIFICATIONS
+CREATE INDEX idx_notifications_user
+    ON notifications("userId");
+
+CREATE INDEX idx_notifications_user_time
+    ON notifications("userId","notificationTime" DESC);
+
+-- SYSTEM LOGS
+CREATE INDEX idx_system_logs_user
+    ON system_logs("userId");
+
+-- CLUB APPLICATIONS
+CREATE INDEX idx_application_activity
+    ON club_applications("activityId");
+
+CREATE INDEX idx_application_user
+    ON club_applications("userId");
+
+-- CHECKINS
+CREATE INDEX idx_registration_checkins_registration
+    ON registration_checkins("registrationId");
+
+CREATE INDEX idx_activity_checkins_activity
+    ON activity_checkins("activityId");

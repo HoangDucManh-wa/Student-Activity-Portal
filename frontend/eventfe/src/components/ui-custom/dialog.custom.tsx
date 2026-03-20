@@ -4,6 +4,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { SlidersHorizontal } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,36 +19,57 @@ import { Field, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SelectCustom } from "./select.ui.custom"
-import { EVENT_CATEGORIES, EVENT_STATUS } from "@/configs/constants/even.constant"
+import { EVENT_STATUS } from "@/configs/constants/even.constant"
+import { getCategories } from "@/services/activity.service"
 
 const filterSchema = z.object({
   status: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  category: z.string().optional(),
+  categoryId: z.string().optional(),
 })
 
-type FilterValues = z.infer<typeof filterSchema>
+export type FilterValues = z.infer<typeof filterSchema>
 
-export function DialogCustom({ className }: { className?: string }) {
+interface DialogCustomProps {
+  className?: string
+  onFilter: (filters: FilterValues) => void
+}
 
+export function DialogCustom({ className, onFilter }: DialogCustomProps) {
   const form = useForm<FilterValues>({
     resolver: zodResolver(filterSchema),
     defaultValues: {
       status: "",
       startDate: "",
       endDate: "",
-      category: "",
+      categoryId: "",
     },
   })
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ["activity-categories"],
+    queryFn: () => getCategories(),
+  })
+
+  const categoryOptions = (categoriesData?.data ?? []).map((c) => ({
+    id: String(c.categoryId),
+    name: c.categoryName,
+  }))
+
   function onSubmit(data: FilterValues) {
+    onFilter(data)
+  }
+
+  function handleReset() {
+    form.reset()
+    onFilter({})
   }
 
   return (
     <Dialog modal={false}>
       <DialogTrigger asChild className={className}>
-        <Button variant="outline"> <SlidersHorizontal />Bộ lọc</Button>
+        <Button variant="outline"><SlidersHorizontal />Bộ lọc</Button>
       </DialogTrigger>
 
       <DialogContent className="w-[600px]">
@@ -64,7 +86,7 @@ export function DialogCustom({ className }: { className?: string }) {
                 render={({ field }) => (
                   <SelectCustom
                     data={EVENT_STATUS}
-                    placeholder="Trạng thái của sự kiện"
+                    placeholder="Tất cả trạng thái"
                     className="w-[350px]"
                     value={field.value}
                     onChange={field.onChange}
@@ -73,7 +95,23 @@ export function DialogCustom({ className }: { className?: string }) {
               />
             </Field>
             <Field orientation="horizontal">
-              <Label className="w-[100px]">Thời gian bắt đầu</Label>
+              <Label className="w-[100px]">Phân loại</Label>
+              <Controller
+                name="categoryId"
+                control={form.control}
+                render={({ field }) => (
+                  <SelectCustom
+                    data={categoryOptions}
+                    placeholder="Tất cả phân loại"
+                    className="w-[350px]"
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <Label className="w-[100px]">Bắt đầu từ</Label>
               <Input
                 type="date"
                 className="w-[350px]"
@@ -81,27 +119,11 @@ export function DialogCustom({ className }: { className?: string }) {
               />
             </Field>
             <Field orientation="horizontal">
-              <Label className="w-[100px]">Thời gian kết thúc</Label>
+              <Label className="w-[100px]">Kết thúc trước</Label>
               <Input
                 type="date"
                 className="w-[350px]"
                 {...form.register("endDate")}
-              />
-            </Field>
-            <Field orientation="horizontal">
-              <Label className="w-[100px]">Phân loại</Label>
-              <Controller
-                name="category"
-                control={form.control}
-                render={({ field }) => (
-                  <SelectCustom
-                    data={EVENT_CATEGORIES}
-                    placeholder="Phân loại sự kiện"
-                    className="w-[350px]"
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                )}
               />
             </Field>
           </FieldGroup>
@@ -110,12 +132,12 @@ export function DialogCustom({ className }: { className?: string }) {
               type="button"
               variant="outline"
               className="flex-1 cursor-pointer"
-              onClick={() => form.reset()}
+              onClick={handleReset}
             >
-              Làm mới
+              Xóa bộ lọc
             </Button>
             <Button type="submit" className="flex-1 cursor-pointer">
-              Lọc
+              Áp dụng
             </Button>
           </DialogFooter>
         </form>

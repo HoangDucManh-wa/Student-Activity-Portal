@@ -3,16 +3,28 @@ import { http } from "@/configs/http.comfig";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
-  const refreshToken = cookieStore.get("refresh_token")?.value;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("access_token")?.value;
 
-  const res = await http.post(`${envConfig.NEXT_PUBLIC_API_URL}/auth/logout`, { refreshToken }) as any
-  
+  let refreshToken: string | undefined;
+  try {
+    const body = await request.json();
+    refreshToken = body.refreshToken;
+  } catch {
+    refreshToken = undefined;
+  }
 
-  cookieStore.delete("access_token")
-  cookieStore.delete("refresh_token")
+  if (accessToken) {
+    await http.post(
+      `${envConfig.NEXT_PUBLIC_API_URL}/auth/logout`,
+      { refreshToken },
+      `access_token=${accessToken}`
+    );
+  }
 
-  return NextResponse.json(res)
+  cookieStore.delete("access_token");
+  cookieStore.delete("user_role");
+
+  return NextResponse.json({ success: true });
 }

@@ -1,0 +1,353 @@
+"use client"
+
+import { useEffect, useState, useCallback } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { Settings, ToggleLeft, ToggleRight, Trash2, Plus } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  getAllConfigs,
+  updateConfig,
+  getOverridesByKey,
+  deleteOrgOverride,
+  type SystemConfigItem,
+} from "@/services/system-config.service"
+import { http } from "@/configs/http.comfig"
+import { envConfig } from "@/configs/env.config"
+
+const CATEGORY_LABELS: Record<string, string> = {
+  activity: "Hoat dong",
+  registration: "Dang ky",
+  organization: "To chuc",
+  system: "He thong",
+}
+
+interface OrgOption {
+  organizationId: number
+  organizationName: string
+}
+
+function ConfigToggle({
+  config,
+  onToggle,
+  isPending,
+}: {
+  config: SystemConfigItem
+  onToggle: (key: string, value: Record<string, unknown>) => void
+  isPending: boolean
+}) {
+  const enabled = (config.value as { enabled?: boolean })?.enabled ?? false
+
+  return (
+    <div className="flex items-center justify-between py-4 px-4 border-b last:border-b-0">
+      <div className="flex-1 mr-4">
+        <p className="font-medium text-sm">{config.label}</p>
+        {config.description && (
+          <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+        )}
+        <span className="text-xs text-gray-400 font-mono mt-1 block">{config.key}</span>
+      </div>
+      <button
+        onClick={() => onToggle(config.key, { enabled: !enabled })}
+        disabled={isPending}
+        className="flex items-center gap-1 disabled:opacity-50"
+        title={enabled ? "Tat" : "Bat"}
+      >
+        {enabled ? (
+          <ToggleRight className="w-8 h-8 text-green-500" />
+        ) : (
+          <ToggleLeft className="w-8 h-8 text-gray-400" />
+        )}
+      </button>
+    </div>
+  )
+}
+
+function ConfigNumber({
+  config,
+  onUpdate,
+  isPending,
+}: {
+  config: SystemConfigItem
+  onUpdate: (key: string, value: Record<string, unknown>) => void
+  isPending: boolean
+}) {
+  const currentValue = (config.value as { value?: number })?.value ?? 0
+  const [localValue, setLocalValue] = useState(String(currentValue))
+
+  useEffect(() => {
+    setLocalValue(String(currentValue))
+  }, [currentValue])
+
+  const handleBlur = () => {
+    const num = Number(localValue)
+    if (!isNaN(num) && num !== currentValue) {
+      onUpdate(config.key, { value: num })
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between py-4 px-4 border-b last:border-b-0">
+      <div className="flex-1 mr-4">
+        <p className="font-medium text-sm">{config.label}</p>
+        {config.description && (
+          <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+        )}
+        <span className="text-xs text-gray-400 font-mono mt-1 block">{config.key}</span>
+      </div>
+      <input
+        type="number"
+        min={0}
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={(e) => e.key === "Enter" && handleBlur()}
+        disabled={isPending}
+        className="w-24 px-2 py-1 border rounded text-sm text-right disabled:opacity-50"
+      />
+    </div>
+  )
+}
+
+function OrgOverridesSection({
+  configKey,
+  organizations,
+}: {
+  configKey: string
+  organizations: OrgOption[]
+}) {
+  const queryClient = useQueryClient()
+  const [selectedOrgId, setSelectedOrgId] = useState<number | "">("")
+  const [showAdd, setShowAdd] = useState(false)
+
+  const { data: overridesResp } = useQuery({
+    queryKey: ["config-overrides", configKey],
+    queryFn: () => getOverridesByKey(configKey),
+  })
+
+  const overrides = overridesResp?.data ?? []
+
+  const addMut = useMutation({
+    mutationFn: ({ orgId, value }: { orgId: number; value: Record<string, unknown> }) =>
+      updateConfig(configKey, value, orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["config-overrides", configKey] })
+      toast.success("Da them override cho to chuc")
+      setShowAdd(false)
+      setSelectedOrgId("")
+    },
+    onError: () => toast.error("Thao tac that bai"),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (orgId: number) => deleteOrgOverride(configKey, orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["config-overrides", configKey] })
+      toast.success("Da xoa override")
+    },
+    onError: () => toast.error("Thao tac that bai"),
+  })
+
+  const orgsWithOverride = overrides.map((o) => o.organizationId)
+  const availableOrgs = organizations.filter(
+    (org) => !orgsWithOverride.includes(org.organizationId),
+  )
+
+  return (
+    <div className="mt-2 ml-4 mb-2">
+      {overrides.length > 0 && (
+        <div className="space-y-1">
+          {overrides.map((ov) => {
+            const enabled = (ov.value as { enabled?: boolean })?.enabled
+            return (
+              <div
+                key={ov.configId}
+                className="flex items-center gap-2 text-xs bg-gray-50 px-3 py-2 rounded"
+              >
+                <span className="font-medium">
+                  {ov.organization?.organizationName ?? `Org #${ov.organizationId}`}
+                </span>
+                <span className={enabled ? "text-green-600" : "text-red-500"}>
+                  {enabled ? "BAT" : "TAT"}
+                </span>
+                <button
+                  onClick={() => ov.organizationId && deleteMut.mutate(ov.organizationId)}
+                  disabled={deleteMut.isPending}
+                  className="ml-auto text-red-400 hover:text-red-600 disabled:opacity-50"
+                  title="Xoa override"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {!showAdd ? (
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-2"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Them override cho to chuc
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 mt-2">
+          <select
+            value={selectedOrgId}
+            onChange={(e) => setSelectedOrgId(e.target.value ? Number(e.target.value) : "")}
+            className="text-xs border rounded px-2 py-1 flex-1"
+          >
+            <option value="">-- Chon to chuc --</option>
+            {availableOrgs.map((org) => (
+              <option key={org.organizationId} value={org.organizationId}>
+                {org.organizationName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              if (selectedOrgId) {
+                addMut.mutate({ orgId: selectedOrgId as number, value: { enabled: false } })
+              }
+            }}
+            disabled={!selectedOrgId || addMut.isPending}
+            className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            Them
+          </button>
+          <button
+            onClick={() => {
+              setShowAdd(false)
+              setSelectedOrgId("")
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Huy
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function AdminSettingsPage() {
+  const queryClient = useQueryClient()
+
+  const { data: configsResp, isLoading, isError } = useQuery({
+    queryKey: ["system-configs"],
+    queryFn: getAllConfigs,
+  })
+
+  const { data: orgsResp } = useQuery({
+    queryKey: ["all-organizations-for-config"],
+    queryFn: () =>
+      http.get<{
+        success: boolean
+        data: { data: OrgOption[] }
+      }>(`${envConfig.NEXT_PUBLIC_API_URL}/organizations?limit=100`),
+  })
+
+  const organizations: OrgOption[] = orgsResp?.data?.data ?? []
+  const configs = configsResp?.data ?? []
+
+  const updateMut = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: Record<string, unknown> }) =>
+      updateConfig(key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
+      toast.success("Da cap nhat cau hinh")
+    },
+    onError: () => toast.error("Thao tac that bai"),
+  })
+
+  const handleUpdate = useCallback(
+    (key: string, value: Record<string, unknown>) => {
+      updateMut.mutate({ key, value })
+    },
+    // mutate is a stable reference in React Query v5
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [updateMut.mutate],
+  )
+
+  const categories = [...new Set(configs.map((c) => c.category))]
+
+  const renderConfig = (config: SystemConfigItem) => {
+    if (config.dataType === "boolean") {
+      return (
+        <div key={config.configId}>
+          <ConfigToggle
+            config={config}
+            onToggle={handleUpdate}
+            isPending={updateMut.isPending}
+          />
+          <OrgOverridesSection configKey={config.key} organizations={organizations} />
+        </div>
+      )
+    }
+    if (config.dataType === "number") {
+      return (
+        <div key={config.configId}>
+          <ConfigNumber
+            config={config}
+            onUpdate={handleUpdate}
+            isPending={updateMut.isPending}
+          />
+        </div>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <Settings className="w-5 h-5" />
+        <h1 className="text-xl font-bold">Cau hinh he thong</h1>
+      </div>
+
+      {isError && (
+        <div className="text-center py-16 text-red-500">
+          Khong the tai cau hinh. Vui long thu lai sau.
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && configs.length === 0 && (
+        <div className="text-center py-16 text-gray-400">
+          Chua co cau hinh nao. Hay chay seed de tao cau hinh mac dinh.
+        </div>
+      )}
+
+      {!isLoading && configs.length > 0 && (
+        <Tabs defaultValue={categories[0]} className="w-full">
+          <TabsList>
+            {categories.map((cat) => (
+              <TabsTrigger key={cat} value={cat}>
+                {CATEGORY_LABELS[cat] ?? cat}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {categories.map((cat) => (
+            <TabsContent key={cat} value={cat}>
+              <div className="bg-white rounded-xl shadow-sm mt-4">
+                {configs
+                  .filter((c) => c.category === cat)
+                  .map((config) => renderConfig(config))}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
+    </div>
+  )
+}

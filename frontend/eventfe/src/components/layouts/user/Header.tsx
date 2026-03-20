@@ -3,14 +3,29 @@ import { ChevronDown, Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { UserMenu } from "../avatar";
+<<<<<<< HEAD
 import { navigationConfig } from "@/configs/navigation";
+=======
+import { NotificationBell } from "@/components/ui-custom/NotificationBell";
+import { OrgBrand } from "../OrgBrand";
+>>>>>>> origin/main
 
 export async function Header({ isClub = false }: { isClub?: boolean }) {
   return (
     <header className="bg-[#05566B] flex items-center justify-between sticky top-0 w-full z-[999]">
+<<<<<<< HEAD
       <Link href={isClub ? "/organization" : "/"} className="ml-[180px] mr-[50px]">
         <Image width={59} height={59} alt="Logo" src="/logoheader.png" />
       </Link>
+=======
+      {isClub ? (
+        <OrgBrand />
+      ) : (
+        <Link href="/" className="ml-[180px] mr-[50px]">
+          <Image width={59} height={59} alt="Logo" src="/logoheader.png" />
+        </Link>
+      )}
+>>>>>>> origin/main
       <nav className="ml-4 flex items-center gap-[40px] justify-center">
         <Link href={isClub ? "/organization" : "/"} className="text-white uppercase font-bold tracking-wider text-[13px] px-6 py-6 transition-colors block ">
           Trang chủ
@@ -21,10 +36,10 @@ export async function Header({ isClub = false }: { isClub?: boolean }) {
             <ChevronDown className="group-hover:rotate-180 transition-transform duration-200 inline-block" />
           </Link>
           <div className="absolute top-[60px] left-0 bg-[#05566B] hidden group-hover:block shadow-lg z-50 w-[250px] rounded-[8px]">
-            <Link href="/" className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] transition-colors hover:bg-teal-700 rounded-[8px]">
+            <Link href="/event?type=competition" className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] transition-colors hover:bg-teal-700 rounded-[8px]">
               Cuộc Thi
             </Link>
-            <Link href="/" className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] transition-colors hover:bg-teal-700 rounded-[8px]">
+            <Link href="/event?type=program" className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] transition-colors hover:bg-teal-700 rounded-[8px]">
               Chương Trình
             </Link>
           </div>
@@ -58,6 +73,16 @@ export async function Header({ isClub = false }: { isClub?: boolean }) {
                 >
                   Ứng viên
                 </Link>
+<<<<<<< HEAD
+=======
+
+                <Link
+                  href="/organization/forms"
+                  className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
+                >
+                  Biểu mẫu
+                </Link>
+>>>>>>> origin/main
               </div>
             </div>
           ) : (
@@ -80,7 +105,11 @@ export async function Header({ isClub = false }: { isClub?: boolean }) {
           />
         </div>
         <UserMenu isOrganization={isClub} />
+<<<<<<< HEAD
         <Image width={25} height={29} alt="Logo" src="/bell.svg" />
+=======
+        <NotificationBell />
+>>>>>>> origin/main
       </div>
     </header>
   )

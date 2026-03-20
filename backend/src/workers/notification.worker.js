@@ -3,14 +3,13 @@ const { getRedisConnection } = require("../config/bullmq");
 const { NOTIFICATION_QUEUE_NAME } = require("../utils/constants");
 const prisma = require("../config/prisma");
 const { sendNotificationEmail } = require("../utils/mailer");
-const { sendSMS } = require("../utils/sms");
 
 const processNotificationJob = async (job) => {
-  const { maNguoiDung, tieuDe, noiDung, kenhGui } = job.data;
+  const { userId, title, content, channels } = job.data;
 
-  const user = await prisma.nguoiDung.findFirst({
-    where: { MaNguoiDung: maNguoiDung, isDelete: false },
-    select: { Email: true, SDT: true, TenNguoiDung: true },
+  const user = await prisma.user.findFirst({
+    where: { userId: Number(userId), isDeleted: false },
+    select: { email: true, phoneNumber: true, userName: true },
   });
 
   if (!user) {
@@ -19,20 +18,18 @@ const processNotificationJob = async (job) => {
 
   const results = [];
 
-  for (const channel of kenhGui) {
-    if (channel === "EMAIL" && user.Email) {
-      await sendNotificationEmail({
-        to: user.Email,
-        subject: tieuDe,
-        body: noiDung,
-      });
-      results.push({ channel: "EMAIL", status: "sent" });
-    } else if (channel === "SMS" && user.SDT) {
-      await sendSMS({
-        to: user.SDT,
-        body: `${tieuDe}: ${noiDung}`,
-      });
-      results.push({ channel: "SMS", status: "sent" });
+  for (const channel of channels ?? []) {
+    if (channel === "EMAIL" && user.email) {
+      try {
+        await sendNotificationEmail({
+          to: user.email,
+          subject: title,
+          body: content ?? "",
+        });
+        results.push({ channel: "EMAIL", status: "sent" });
+      } catch (err) {
+        results.push({ channel: "EMAIL", status: "failed", reason: err.message });
+      }
     } else {
       results.push({ channel, status: "skipped", reason: "no_contact_info" });
     }

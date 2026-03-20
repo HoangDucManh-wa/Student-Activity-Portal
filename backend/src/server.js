@@ -7,7 +7,11 @@ const {
   startNotificationWorker,
   stopNotificationWorker,
 } = require("./workers/notification.worker");
-const { closeQueue } = require("./config/bullmq");
+const {
+  startRegistrationWorker,
+  stopRegistrationWorker,
+} = require("./workers/registration.worker");
+const { closeQueues } = require("./config/bullmq");
 const app = require("./app");
 
 validateEnv();
@@ -19,6 +23,7 @@ const start = async () => {
   await connectRedis();
 
   startNotificationWorker();
+  startRegistrationWorker();
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`);
@@ -34,7 +39,8 @@ process.on("unhandledRejection", (err) => {
 
 const gracefulShutdown = async () => {
   await stopNotificationWorker();
-  await closeQueue();
+  await stopRegistrationWorker();
+  await closeQueues();
   process.exit(0);
 };
 

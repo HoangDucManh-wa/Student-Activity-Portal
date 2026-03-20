@@ -1,42 +1,41 @@
-import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardHeader,
-} from "@/components/ui/card"
-import Image from "next/image"
-import { ProfileForm } from "./ProfileForm"
-import { BannerCustom } from "@/components/ui-custom/banner.custom"
-import { ChevronRight, Link } from "lucide-react"
+"use client"
 
+import { useState } from "react"
+import { Card, CardHeader } from "@/components/ui/card"
+import { ProfileForm } from "./ProfileForm"
+import { useQuery } from "@tanstack/react-query"
+import { getMe } from "@/services/auth.service"
+import { ImageUpload } from "@/components/ui-custom/ImageUpload"
 
 export default function ProfilePage() {
+  const [pendingAvatarKey, setPendingAvatarKey] = useState<string | null>(null)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => getMe(),
+  })
+
+  const user = data?.data?.user
 
   return (
     <Card className="w-full px-[30px] mt-[20px]">
       <CardHeader>
-        <div className="">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-[10px]">
-              <Image
-                src="/hinh-nen-may-tinh-anime.jpg"
-                alt="Profile"
-                width={1080}
-                height={1080}
-                className="w-[100px] h-[100px] rounded-full object-cover"
-              />
-              <div>
-                <h2>Đinh Thành Long</h2>
-                <div>longabcd123@gmail.com</div>
-              </div>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-[10px]">
+            <ImageUpload
+              folder="avatars"
+              variant="avatar"
+              currentImageUrl={user?.avatarUrl ?? "/hinh-nen-may-tinh-anime.jpg"}
+              onUpload={setPendingAvatarKey}
+            />
+            <div>
+              <h2>{isLoading ? "..." : (user?.userName ?? "\u2014")}</h2>
+              <div>{isLoading ? "..." : (user?.email ?? "\u2014")}</div>
             </div>
-            <Button className="cursor-pointer">Edit</Button>
           </div>
         </div>
       </CardHeader>
-      <ProfileForm />
+      <ProfileForm user={user} isLoading={isLoading} pendingAvatarKey={pendingAvatarKey} />
     </Card>
   )
 }
-
-
-

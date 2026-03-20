@@ -43,7 +43,17 @@ export function LoginForm() {
       toast.error(res.message)
       return
     }
-    router.push('/')
+
+    if (res.refreshToken) {
+      localStorage.setItem("refreshToken", res.refreshToken)
+    }
+
+    const role = res.user?.role ?? "student"
+    if (role === "admin") {
+      router.push("/admin")
+    } else {
+      router.push("/")
+    }
     toast.success("Đăng nhập thành công")
   }
 
@@ -106,8 +116,7 @@ export function LoginForm() {
             Login
           </Button>
           <Button
-            type="submit"
-            form="form-login"
+            type="button"
             className="w-[327px] h-[48px] bg-white border border-[#EFF0F6] text-black shadow-[inset_0px_-3px_6px_0px_#F4F5FA99] hover:bg-white cursor-pointer"
           >
             Sign up with Google
