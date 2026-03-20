@@ -3,65 +3,48 @@
 import * as React from "react"
 import { Controller, useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { MauForm, CauHoi, SubmitFormPayload } from "@/types/form/form.types"
+import type { Form, Question, SubmitFormPayload } from "@/types/form/form.types"
 
 interface FormRendererProps {
-  form: MauForm
+  form: Form
   onSubmit: (data: SubmitFormPayload) => void
   isSubmitting?: boolean
 }
 
-function evaluateCondition(
-  condition: CauHoi["DieuKienHienThi"],
-  answers: Record<string, string | string[]>
-): boolean {
-  if (!condition) return true
-  const value = answers[condition.maCauHoi]
-  const target = condition.giaTri
-  const actual = Array.isArray(value) ? value.join(",") : (value || "")
-
-  switch (condition.phepSo) {
-    case "BANG": return actual === target
-    case "KHAC": return actual !== target
-    case "CHUA": return Array.isArray(value) ? value.includes(target) : actual.includes(target)
-    default: return true
-  }
-}
-
-function QuestionField({ question, control, answers }: {
-  question: CauHoi
+function QuestionField({ question, control }: {
+  question: Question
   control: any
-  answers: Record<string, string | string[]>
 }) {
-  const visible = evaluateCondition(question.DieuKienHienThi, answers)
-  if (!visible) return null
+  const fieldName = `q_${question.questionId}`
 
-  const fieldName = `answers.${question.MaCauHoi}`
-
-  switch (question.LoaiCauHoi) {
-    case "TEXT":
-    case "NUMBER":
-    case "DATE":
+  switch (question.type) {
+    case "short_text":
+    case "date":
+    case "time":
       return (
         <Controller
           name={fieldName}
           control={control}
-          rules={{ required: question.BatBuoc ? "Truong nay bat buoc" : false }}
+          rules={{ required: question.required ? "Trường này bắt buộc" : false }}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-              {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
+              <FieldLabel>
+                {question.title}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
+              </FieldLabel>
+              {question.description && (
+                <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+              )}
               <Input
                 {...field}
-                type={question.LoaiCauHoi === "NUMBER" ? "number" : question.LoaiCauHoi === "DATE" ? "date" : "text"}
-                placeholder={question.NoiDung}
+                type={question.type === "date" ? "date" : question.type === "time" ? "time" : "text"}
+                placeholder={question.title}
               />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
             </Field>
@@ -69,44 +52,54 @@ function QuestionField({ question, control, answers }: {
         />
       )
 
-    case "TEXTAREA":
+    case "paragraph":
       return (
         <Controller
           name={fieldName}
           control={control}
-          rules={{ required: question.BatBuoc ? "Truong nay bat buoc" : false }}
+          rules={{ required: question.required ? "Trường này bắt buộc" : false }}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-              {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
-              <Textarea {...field} placeholder={question.NoiDung} />
+              <FieldLabel>
+                {question.title}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
+              </FieldLabel>
+              {question.description && (
+                <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+              )}
+              <Textarea {...field} placeholder={question.title} />
               {fieldState.error && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
       )
 
-    case "RADIO":
+    case "multiple_choice":
       return (
         <Controller
           name={fieldName}
           control={control}
-          rules={{ required: question.BatBuoc ? "Truong nay bat buoc" : false }}
+          rules={{ required: question.required ? "Trường này bắt buộc" : false }}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-              {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
+              <FieldLabel>
+                {question.title}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
+              </FieldLabel>
+              {question.description && (
+                <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+              )}
               <div className="space-y-2 mt-1">
-                {(question.TuyChon || []).map((opt) => (
-                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                {question.options.map((opt) => (
+                  <label key={opt.optionId} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
-                      value={opt}
-                      checked={field.value === opt}
-                      onChange={() => field.onChange(opt)}
+                      value={String(opt.optionId)}
+                      checked={field.value === String(opt.optionId)}
+                      onChange={() => field.onChange(String(opt.optionId))}
                       className="h-4 w-4"
                     />
-                    <span className="text-sm">{opt}</span>
+                    <span className="text-sm">{opt.label}</span>
                   </label>
                 ))}
               </div>
@@ -116,31 +109,36 @@ function QuestionField({ question, control, answers }: {
         />
       )
 
-    case "CHECKBOX":
+    case "checkboxes":
       return (
         <Controller
           name={fieldName}
           control={control}
           defaultValue={[]}
-          render={({ field, fieldState }) => {
+          render={({ field }) => {
             const selected: string[] = Array.isArray(field.value) ? field.value : []
             return (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-                {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
+              <Field>
+                <FieldLabel>
+                  {question.title}
+                  {question.required && <span className="text-red-500 ml-1">*</span>}
+                </FieldLabel>
+                {question.description && (
+                  <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+                )}
                 <div className="space-y-2 mt-1">
-                  {(question.TuyChon || []).map((opt) => (
-                    <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                  {question.options.map((opt) => (
+                    <label key={opt.optionId} className="flex items-center gap-2 cursor-pointer">
                       <Checkbox
-                        checked={selected.includes(opt)}
+                        checked={selected.includes(String(opt.optionId))}
                         onCheckedChange={(checked) => {
                           const next = checked
-                            ? [...selected, opt]
-                            : selected.filter((v) => v !== opt)
+                            ? [...selected, String(opt.optionId)]
+                            : selected.filter((v) => v !== String(opt.optionId))
                           field.onChange(next)
                         }}
                       />
-                      <span className="text-sm">{opt}</span>
+                      <span className="text-sm">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -150,23 +148,30 @@ function QuestionField({ question, control, answers }: {
         />
       )
 
-    case "SELECT":
+    case "dropdown":
       return (
         <Controller
           name={fieldName}
           control={control}
-          rules={{ required: question.BatBuoc ? "Truong nay bat buoc" : false }}
+          rules={{ required: question.required ? "Trường này bắt buộc" : false }}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-              {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
+              <FieldLabel>
+                {question.title}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
+              </FieldLabel>
+              {question.description && (
+                <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+              )}
               <Select value={field.value || ""} onValueChange={field.onChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Chon..." />
+                  <SelectValue placeholder="Chọn..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {(question.TuyChon || []).map((opt) => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  {question.options.map((opt) => (
+                    <SelectItem key={opt.optionId} value={String(opt.optionId)}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -176,23 +181,33 @@ function QuestionField({ question, control, answers }: {
         />
       )
 
-    case "RATING":
+    case "linear_scale":
       return (
         <Controller
           name={fieldName}
           control={control}
           render={({ field }) => (
             <Field>
-              <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
+              <FieldLabel>
+                {question.title}
+                {question.required && <span className="text-red-500 ml-1">*</span>}
+              </FieldLabel>
               <div className="flex gap-1 mt-1">
-                {[1, 2, 3, 4, 5].map((star) => (
+                {Array.from(
+                  { length: (question.scaleMax ?? 5) - (question.scaleMin ?? 1) + 1 },
+                  (_, i) => (question.scaleMin ?? 1) + i
+                ).map((val) => (
                   <button
-                    key={star}
+                    key={val}
                     type="button"
-                    onClick={() => field.onChange(String(star))}
-                    className={`text-2xl ${Number(field.value) >= star ? "text-yellow-500" : "text-gray-300"}`}
+                    onClick={() => field.onChange(String(val))}
+                    className={`w-8 h-8 rounded border text-sm ${
+                      field.value === String(val)
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
                   >
-                    ★
+                    {val}
                   </button>
                 ))}
               </div>
@@ -201,13 +216,17 @@ function QuestionField({ question, control, answers }: {
         />
       )
 
-    case "FILE":
+    case "file_upload":
       return (
         <Field>
-          <FieldLabel>{question.NoiDung} {question.BatBuoc && <span className="text-red-500">*</span>}</FieldLabel>
-          {question.MoTa && <p className="text-xs text-muted-foreground mb-1">{question.MoTa}</p>}
+          <FieldLabel>
+            {question.title}
+            {question.required && <span className="text-red-500 ml-1">*</span>}
+          </FieldLabel>
+          {question.description && (
+            <p className="text-xs text-muted-foreground mb-1">{question.description}</p>
+          )}
           <Input type="file" className="mt-1" />
-          <p className="text-xs text-muted-foreground mt-1">File upload (coming soon)</p>
         </Field>
       )
 
@@ -218,7 +237,7 @@ function QuestionField({ question, control, answers }: {
           control={control}
           render={({ field }) => (
             <Field>
-              <FieldLabel>{question.NoiDung}</FieldLabel>
+              <FieldLabel>{question.title}</FieldLabel>
               <Input {...field} />
             </Field>
           )}
@@ -228,27 +247,30 @@ function QuestionField({ question, control, answers }: {
 }
 
 export function FormRenderer({ form: formData, onSubmit, isSubmitting }: FormRendererProps) {
-  const rhf = useForm<{ answers: Record<string, string | string[]> }>({
-    defaultValues: { answers: {} },
+  const rhf = useForm<Record<string, string | string[]>>({
+    defaultValues: {},
   })
 
-  const answers = rhf.watch("answers") || {}
-
   const handleSubmit = rhf.handleSubmit((data) => {
-    const allQuestions = formData.phanForm.flatMap((p) => p.cauHoi)
-    const danhSachCauTraLoi = allQuestions
-      .filter((q) => evaluateCondition(q.DieuKienHienThi, data.answers))
-      .map((q) => {
-        const val = data.answers[q.MaCauHoi]
-        return {
-          MaCauHoi: q.MaCauHoi,
-          ...(Array.isArray(val)
-            ? { GiaTriNhieu: val }
-            : { GiaTri: val || "" }),
-        }
-      })
+    const allQuestions = formData.sections.flatMap((s) => s.questions)
 
-    onSubmit({ DanhSachCauTraLoi: danhSachCauTraLoi })
+    const answers: SubmitFormPayload["answers"] = allQuestions.map((q) => {
+      const val = data[`q_${q.questionId}`]
+
+      if (q.type === "checkboxes") {
+        const ids = (Array.isArray(val) ? val : []).map(Number).filter(Boolean)
+        return { questionId: q.questionId, selectedOptionIds: ids }
+      }
+
+      if (q.type === "multiple_choice" || q.type === "dropdown") {
+        const id = Number(val)
+        return { questionId: q.questionId, selectedOptionIds: id ? [id] : [] }
+      }
+
+      return { questionId: q.questionId, textValue: String(val || "") }
+    })
+
+    onSubmit({ answers })
   })
 
   return (
@@ -256,44 +278,38 @@ export function FormRenderer({ form: formData, onSubmit, isSubmitting }: FormRen
       <div className="space-y-6 max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">{formData.TenForm}</CardTitle>
-            {formData.MoTa && (
-              <p className="text-sm text-muted-foreground">{formData.MoTa}</p>
+            <CardTitle className="text-xl">{formData.title}</CardTitle>
+            {formData.description && (
+              <p className="text-sm text-muted-foreground">{formData.description}</p>
             )}
           </CardHeader>
         </Card>
 
-        {formData.phanForm.map((section) => {
-          const sectionVisible = evaluateCondition(section.DieuKienHienThi, answers)
-          if (!sectionVisible) return null
-
-          return (
-            <Card key={section.MaPhan}>
-              <CardHeader>
-                <CardTitle className="text-lg">{section.TieuDe}</CardTitle>
-                {section.MoTa && (
-                  <p className="text-sm text-muted-foreground">{section.MoTa}</p>
-                )}
-              </CardHeader>
-              <CardContent>
-                <FieldGroup className="space-y-5">
-                  {section.cauHoi.map((q) => (
-                    <QuestionField
-                      key={q.MaCauHoi}
-                      question={q}
-                      control={rhf.control}
-                      answers={answers}
-                    />
-                  ))}
-                </FieldGroup>
-              </CardContent>
-            </Card>
-          )
-        })}
+        {formData.sections.map((section) => (
+          <Card key={section.sectionId}>
+            <CardHeader>
+              <CardTitle className="text-lg">{section.title}</CardTitle>
+              {section.description && (
+                <p className="text-sm text-muted-foreground">{section.description}</p>
+              )}
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="space-y-5">
+                {section.questions.map((q) => (
+                  <QuestionField
+                    key={q.questionId}
+                    question={q}
+                    control={rhf.control}
+                  />
+                ))}
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        ))}
 
         <div className="flex justify-end">
           <Button type="submit" disabled={isSubmitting} className="w-32">
-            {isSubmitting ? "Dang nop..." : "Nop form"}
+            {isSubmitting ? "Đang nộp..." : "Nộp form"}
           </Button>
         </div>
       </div>
