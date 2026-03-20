@@ -82,21 +82,33 @@ export default function ParticipantsPage() {
 
           <button
             onClick={() => setFilter("ALL")}
-            className="bg-gray-400 text-white py-2 rounded-xl"
+            className={`py-2 rounded-xl ${
+              filter === "ALL"
+                ? "bg-[#08667a] text-white"
+                : "bg-gray-300 text-black"
+            }`}
           >
             Tất cả
           </button>
 
           <button
             onClick={() => setFilter("CHECKIN")}
-            className="bg-[#08667a] text-white py-2 rounded-xl"
+            className={`py-2 rounded-xl ${
+              filter === "CHECKIN"
+                ? "bg-[#08667a] text-white"
+                : "bg-gray-300 text-black"
+            }`}
           >
             Check-in
           </button>
 
           <button
             onClick={() => setFilter("CHECKOUT")}
-            className="bg-[#08667a] text-white py-2 rounded-xl"
+            className={`py-2 rounded-xl ${
+              filter === "CHECKOUT"
+                ? "bg-[#08667a] text-white"
+                : "bg-gray-300 text-black"
+            }`}
           >
             Check-out
           </button>

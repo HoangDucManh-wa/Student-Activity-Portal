@@ -72,19 +72,43 @@ export default function CandidatePage() {
             <div>{c.major}</div>
 
             <div className="flex justify-center">
-              <button
-                disabled={c.status === "REJECTED" || c.status === "APPROVED"}
-                onClick={() => updateStatus(c.id, "APPROVED")}
-                className={`${baseBtn} ${
-                    c.status === "APPROVED"
-                    ? "bg-green-600"
-                    : c.status === "REJECTED"
-                    ? "bg-gray-300 cursor-not-allowed"
-                    : "bg-green-500"
-                }`}
+              {!c.interviewed ? (
+                <button
+                  disabled={c.status === "APPROVED" || c.status === "REJECTED"}
+                  onClick={() => inviteInterview(c.id)}
+                  className={`${baseBtn} ${
+                    c.status === "APPROVED" || c.status === "REJECTED"
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-[#4fb3c8]"
+                  }`}
                 >
-                {c.status === "APPROVED" ? "Đã duyệt" : "Duyệt"}
+                  Mời phỏng vấn
                 </button>
+              ) : (
+                <span className="text-gray-400 text-xs">
+                  Đã mời phỏng vấn
+                </span>
+              )}
+            </div>
+            
+            <div className="flex justify-center">
+              {c.interviewed ? (
+                <button
+                  disabled={c.status === "APPROVED" || c.status === "REJECTED"}
+                  onClick={() => updateStatus(c.id, "APPROVED")}
+                  className={`${baseBtn} ${
+                    c.status === "APPROVED"
+                      ? "bg-green-600"
+                      : c.status === "REJECTED"
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-green-500"
+                  }`}
+                >
+                  {c.status === "APPROVED" ? "Đã duyệt" : "Duyệt"}
+                </button>
+              ) : (
+                <span className="text-gray-400 text-xs">Chưa phỏng vấn</span>
+              )}
             </div>
 
             <div className="flex justify-center">
@@ -104,26 +128,6 @@ export default function CandidatePage() {
                 >
                 {c.status === "REJECTED" ? "Đã loại" : "Loại"}
             </button>
-            </div>
-
-            <div className="flex justify-center">
-              {c.status !== "APPROVED" ? (
-                <span className="text-gray-400 text-xs">
-                  Chưa duyệt
-                </span>
-              ) : (
-                <button
-                    disabled={c.interviewed}
-                    onClick={() => inviteInterview(c.id)}
-                    className={`${baseBtn} ${
-                        c.interviewed
-                        ? "bg-[#3b7c8a] cursor-not-allowed"
-                        : "bg-[#4fb3c8]"
-                    }`}
-                    >
-                    {c.interviewed ? "Đã mời phỏng vấn" : "Mời phỏng vấn"}
-                </button>
-              )}
             </div>
           </div>
         ))}

@@ -34,14 +34,41 @@ import { ImportExcelDialog } from "../excel-popup"
 
 export const clubSchema = z.object({
   id: z.number(),
-  avatar: z.string(),
-  name: z.string(),
+  avatar: z.string().optional(),
+  userName: z.string(),
   email: z.string(),
+  organizationId: z.string().optional(),
+  university: z.string(),
+  role: z.string(),
 })
 
 type Club = z.infer<typeof clubSchema>
 
-const columns: ColumnDef<Club>[] = [
+export function ClubTable({ data: initialData }: { data: Club[] }) {
+  const filteredData = React.useMemo(() => {
+    return initialData.filter(user => user.role === "organization_leader");
+  }, [initialData]);
+  const [data, setData] = React.useState(() => filteredData);
+  const [rowSelection, setRowSelection] = React.useState({})
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
+
+  const sortableId = React.useId()
+  const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor), useSensor(KeyboardSensor))
+  const dataIds = React.useMemo<UniqueIdentifier[]>(() => data.map(({ id }) => id), [data])
+
+  const [deleteId, setDeleteId] = React.useState<string | number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+  const handleDelete = () => {
+  setData((prev) => prev.filter((item) => item.id !== deleteId));
+  setShowDeleteConfirm(false);
+  setDeleteId(null);
+  };
+
+  const columns: ColumnDef<Club>[] = [
   {
     id: "drag",
     header: () => null,
@@ -81,46 +108,43 @@ const columns: ColumnDef<Club>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "name",
-    header: "Name",
-    cell: ({ row }) => <span>{row.original.name}</span>,
+    accessorKey: "userName",
+    header: "Club Name",
+    cell: ({ row }) => <span>{row.original.userName}</span>,
   },
   {
     accessorKey: "email",
     header: "Email",
-    cell: ({ row }) => <span>{row.original.email}</span>,
+  },
+  {
+    accessorKey: "university",
+    header: "University",
   },
   {
     id: "actions",
-    cell: () => (
+    cell: ({ row }) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="flex size-8 text-muted-foreground data-[state=open]:bg-muted" size="icon">
-            <IconDotsVertical />
+          <Button variant="ghost" className="flex size-8 p-0 text-muted-foreground" size="icon">
+            <IconDotsVertical className="size-4" />
             <span className="sr-only">Open menu</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-32">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/admin/management-account/edit/${row.original.organizationId || row.original.id}`}>
+              Sửa
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+          <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50">
+            Xóa
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     ),
   },
 ]
-
-export function ClubTable({ data: initialData }: { data: Club[] }) {
-  const [data, setData] = React.useState(() => initialData)
-  const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
-
-  const sortableId = React.useId()
-  const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor), useSensor(KeyboardSensor))
-  const dataIds = React.useMemo<UniqueIdentifier[]>(() => data.map(({ id }) => id), [data])
 
   const table = useReactTable({
     data, columns,
@@ -180,7 +204,7 @@ export function ClubTable({ data: initialData }: { data: Club[] }) {
         </DropdownMenu>
         <div className="flex items-center gap-[15px]">
           <ImportExcelDialog />
-          <Link href='/admin/management/club' className="bg-[blue] rounded-[10px] text-white w-[100px] h-[40px] flex items-center justify-center"><Plus /> Tạo mới</Link>
+          <Link href='/admin/management-account/club' className="bg-[blue] rounded-[10px] text-white w-[100px] h-[40px] flex items-center justify-center"><Plus /> Tạo mới</Link>
         </div>
       </div>
 
@@ -263,6 +287,24 @@ export function ClubTable({ data: initialData }: { data: Club[] }) {
           </div>
         </div>
       </div>
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full animate-in fade-in zoom-in duration-200 text-center">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Xác nhận xóa</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Bạn có chắc chắn muốn xóa tài khoản này không? Hành động này không thể hoàn tác.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                Hủy
+              </Button>
+              <Button variant="destructive" onClick={handleDelete}>
+                Xác nhận xóa
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

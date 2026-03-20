@@ -53,35 +53,6 @@ export function UserMenu({
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="z-[99999]">
-<<<<<<< HEAD
-       <DropdownMenuGroup>
-        {!isOrganization && (
-          <>
-            <DropdownMenuItem>
-              <User />
-              <Link href="/profile">Account</Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem>
-              <Rows2 />
-              <Link href="/my-events">Sự kiện của tôi</Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem>
-              <ClipboardClock />
-              <Link href="/history-club">Lịch sử CLB</Link>
-            </DropdownMenuItem>
-          </>
-        )}
-
-        {isOrganization && (
-          <DropdownMenuItem>
-            <User />
-            <Link href="/organization/profile">Hồ sơ</Link>
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuGroup>
-=======
         <DropdownMenuGroup>
           {!isOrganization && (
             <>
@@ -130,7 +101,6 @@ export function UserMenu({
             </>
           )}
         </DropdownMenuGroup>
->>>>>>> origin/main
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
           <LogOutIcon />

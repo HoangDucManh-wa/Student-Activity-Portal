@@ -3,8 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const swaggerUi = require("swagger-ui-express");
-const swaggerSpec = require("./config/swagger");
 
 const errorMiddleware = require("./middlewares/error.middleware");
 const authRoutes = require("./modules/auth/auth.route");
@@ -21,8 +19,6 @@ const uploadRoutes = require("./modules/uploads/upload.route");
 const systemConfigRoutes = require("./modules/system-config/system-config.route");
 const universityRoutes = require("./modules/university/university.route");
 const formsRoutes = require("./modules/forms/forms.route");
-
-const hoatDongRoutes = require("./modules/hoat-dong/hoat-dong.route");
 
 const app = express();
 
@@ -76,37 +72,7 @@ if (process.env.NODE_ENV === "development") {
   app.use(require("morgan")("dev"));
 }
 
-// ─── Swagger UI (dev only) ────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== "production") {
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
-  app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
-}
-
 // ─── Health check ─────────────────────────────────────────────────────────────
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Server health check
- *     tags: [Health]
- *     responses:
- *       200:
- *         description: Server is running
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: OK
- *                 timestamp:
- *                   type: string
- *                   format: date-time
- */
 app.get("/health", (req, res) => {
   res.json({
     success: true,
