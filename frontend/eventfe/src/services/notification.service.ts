@@ -26,10 +26,11 @@ export interface StatsResponse {
   data: { unreadCount: number }
 }
 
-export async function getMyNotifications(params?: { limit?: number; status?: string }) {
+export async function getMyNotifications(params?: { limit?: number; status?: string; page?: number }) {
   const query = new URLSearchParams()
   if (params?.limit) query.set("limit", String(params.limit))
   if (params?.status) query.set("status", params.status)
+  if (params?.page) query.set("page", String(params.page))
   const qs = query.toString()
   return http.get<NotificationsResponse>(`${BASE}${qs ? `?${qs}` : ""}`)
 }
