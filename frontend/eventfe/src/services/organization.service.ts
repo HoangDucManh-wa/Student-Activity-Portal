@@ -31,7 +31,7 @@ export interface OrganizationMember {
   organizationId: number;
   role: string | null;
   joinDate: string | null;
-  user: { userId: number; userName: string; email: string; avatarUrl: string | null };
+  user: { userId: number; userName: string; email: string; avatarUrl: string | null; studentId?: string | null };
 }
 
 // Backend returns: { success: true, data: { data: [], meta: {} } }
