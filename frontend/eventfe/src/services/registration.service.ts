@@ -102,11 +102,27 @@ export interface RegistrationDetail {
     avatarUrl: string | null;
   };
   teamName?: string;
-  teamMembers?: { registrationId: number; userId: number; role: string; user: { userId: number; userName: string } }[];
+  teamMembers?: {
+    registrationId: number;
+    userId: number;
+    role: string;
+    user: {
+      userId: number;
+      userName: string;
+      email: string;
+      studentId: string | null;
+      phoneNumber: string | null;
+      university: string | null;
+      faculty: string | null;
+      className: string | null;
+      avatarUrl: string | null;
+    };
+  }[];
 }
 
 export interface ActivityStats {
   total: number;
+  totalParticipants?: number;
   pending: number;
   approved: number;
   rejected: number;
@@ -185,3 +201,47 @@ export async function matchTeam(
     token
   );
 }
+
+export interface TeamMemberFull {
+  registrationId: number;
+  userId: number;
+  role: string;
+  user: {
+    userId: number;
+    userName: string;
+    email: string;
+    studentId: string | null;
+    phoneNumber: string | null;
+    university: string;
+    faculty: string | null;
+    className: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+export async function createRegistrationWithForm(
+  data: {
+    activityId: number;
+    registrationType?: string;
+    teamName?: string;
+    isLookingForTeam?: boolean;
+    teamMembers?: { userId: number; role: string }[];
+    formResponse?: {
+      formId: number;
+      answers: {
+        questionId: number;
+        textValue?: string | null;
+        fileUrl?: string | null;
+        optionIds?: number[];
+      }[];
+    };
+  },
+  token?: string
+) {
+  return http.post<{ success: boolean; data: Registration }>(
+    `${BASE}/with-form`,
+    { registrationType: "individual", ...data },
+    token
+  );
+}
+

@@ -205,10 +205,6 @@ export default function ClubInfoPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editName, setEditName] = useState("")
   const [editDesc, setEditDesc] = useState("")
-  const [editEmail, setEditEmail] = useState("")
-  const [editTiktok, setEditTiktok] = useState("")
-  const [editFacebook, setEditFacebook] = useState("")
-  const [editPhone, setEditPhone] = useState("")
 
   // Recruitment dialogs
   const [showOpenDialog, setShowOpenDialog] = useState(false)
@@ -230,13 +226,12 @@ export default function ClubInfoPage() {
   }
 
   const editMut = useMutation({
-    mutationFn: (data: { organizationName: string; description: string; email?: string; tiktokUrl?: string; facebookUrl?: string; phoneNumber?: string }) =>
+    mutationFn: (data: { organizationName: string; description: string }) =>
       updateMyOrganization(org!.organizationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-organization"] })
       setShowEditDialog(false)
       toast.success("Cập nhật thông tin thành công")
-      // isEditing is NOT changed here — user can still edit images after saving text
     },
     onError: () => toast.error("Cập nhật thất bại"),
   })
@@ -273,10 +268,6 @@ export default function ClubInfoPage() {
   const handleClickEditInfo = () => {
     setEditName(org?.organizationName ?? "")
     setEditDesc(org?.description ?? "")
-    setEditEmail(org?.email ?? "")
-    setEditTiktok((org as any)?.tiktokUrl ?? "")
-    setEditFacebook((org as any)?.facebookUrl ?? "")
-    setEditPhone((org as any)?.phoneNumber ?? "")
     setShowEditDialog(true)
   }
 
@@ -401,21 +392,6 @@ export default function ClubInfoPage() {
         {org?.description ?? "Chưa có mô tả."}
       </div>
 
-      {/* ── LIÊN HỆ ── */}
-      <div className="flex items-center w-full my-8 md:my-10">
-        <div className="flex-1 h-[3px] bg-[#08667a]" />
-        <span className="bg-[#08667a] text-white px-6 sm:px-8 py-2 rounded-full font-bold text-[13px] sm:text-[15px] md:text-[16px] uppercase tracking-wider">
-          Liên hệ
-        </span>
-        <div className="flex-1 h-[3px] bg-[#08667a]" />
-      </div>
-      <div className="mx-3 sm:mx-5 md:mx-5 rounded-[20px] border-[3px] border-[#1A73E8] p-4 sm:p-5 space-y-3 text-sm sm:text-base">
-        <div><span className="font-semibold">Tiktok:</span>{" "}<span className="text-gray-700">{(org as any)?.tiktokUrl ?? ""}</span></div>
-        <div><span className="font-semibold">Email:</span>{" "}<span className="text-gray-700">{org?.email ?? ""}</span></div>
-        <div><span className="font-semibold">Facebook:</span>{" "}<span className="text-gray-700">{(org as any)?.facebookUrl ?? ""}</span></div>
-        <div><span className="font-semibold">Số điện thoại:</span>{" "}<span className="text-gray-700">{(org as any)?.phoneNumber ?? ""}</span></div>
-      </div>
-
       {/* ── Recruitment info banner ── */}
       {org?.isRecruiting && (
         <div className="mx-3 sm:mx-5 mt-6 p-4 rounded-xl bg-teal-50 border border-teal-300 text-teal-700 text-sm space-y-1">
@@ -499,44 +475,6 @@ export default function ClubInfoPage() {
               onChange={(e) => setEditDesc(e.target.value)}
             />
           </div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Liên hệ</p>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ</label>
-            <input
-              type="email"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              placeholder="Email liên hệ công khai"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">TikTok</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              value={editTiktok}
-              onChange={(e) => setEditTiktok(e.target.value)}
-              placeholder="Link hoặc tên tài khoản TikTok"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Facebook</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              value={editFacebook}
-              onChange={(e) => setEditFacebook(e.target.value)}
-              placeholder="Link Facebook"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              value={editPhone}
-              onChange={(e) => setEditPhone(e.target.value)}
-              placeholder="Số điện thoại liên hệ"
-            />
-          </div>
         </div>
         <div className="flex justify-end gap-3 mt-4">
           <button className="px-4 py-2 rounded-lg border text-sm" onClick={() => setShowEditDialog(false)}>Hủy</button>
@@ -546,10 +484,6 @@ export default function ClubInfoPage() {
             onClick={() => editMut.mutate({
               organizationName: editName,
               description: editDesc,
-              ...(editEmail ? { email: editEmail } : {}),
-              ...(editTiktok ? { tiktokUrl: editTiktok } : { tiktokUrl: undefined }),
-              ...(editFacebook ? { facebookUrl: editFacebook } : { facebookUrl: undefined }),
-              ...(editPhone ? { phoneNumber: editPhone } : { phoneNumber: undefined }),
             })}
           >
             {editMut.isPending ? "Đang lưu..." : "Lưu"}

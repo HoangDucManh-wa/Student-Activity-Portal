@@ -2,7 +2,7 @@ const { z } = require("zod");
 
 const createOrganizationSchema = z.object({
   organizationName: z.string().min(1, "Tên tổ chức là bắt buộc").max(255),
-  organizationType: z.enum(["university", "club", "department", "company"]),
+  organizationType: z.enum(["organization", "club"]),
   email: z.string().email("Email không hợp lệ").optional().nullable(),
   password: z.string().min(8, "Mật khẩu phải có ít nhất 8 ký tự").optional().nullable(),
   description: z.string().optional().nullable(),
@@ -28,7 +28,8 @@ const getOrganizationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
-  organizationType: z.enum(["university", "club", "department", "company"]).optional(),
+  organizationType: z.enum(["organization", "club"]).optional(),
+  isRecruiting: z.string().optional(),
 });
 
 const addMemberSchema = z.object({
@@ -40,10 +41,25 @@ const updateMemberRoleSchema = z.object({
   role: z.enum(["president", "vice_president", "head_of_department", "vice_head", "member"]),
 });
 
+const createGroupSchema = z.object({
+  groupName: z.string().min(1, "Tên nhóm là bắt buộc").max(255),
+  description: z.string().optional().nullable(),
+});
+
+const pushToGroupSchema = z.object({
+  memberIds: z.array(z.coerce.number().int().positive()).min(1),
+  groupId: z.coerce.number().int().positive().optional(),
+  newGroupName: z.string().min(1).max(255).optional(),
+}).refine((data) => data.groupId || data.newGroupName, {
+  message: "Phải chọn nhóm có sẵn hoặc tên nhóm mới",
+});
+
 module.exports = {
   createOrganizationSchema,
   updateOrganizationSchema,
   getOrganizationsQuerySchema,
   addMemberSchema,
   updateMemberRoleSchema,
+  createGroupSchema,
+  pushToGroupSchema,
 };

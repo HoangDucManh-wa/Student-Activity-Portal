@@ -52,7 +52,7 @@ export const studentSchema = z.object({
 
 type Student = z.infer<typeof studentSchema>
 
-const ROLES = ["student", "organization_leader", "organization_member", "club", "admin"] as const
+const ROLES = ["student", "organization_leader", "organization_member", "admin"] as const
 
 function CreateUserDialog({ onCreated }: { onCreated?: () => void }) {
   const [open, setOpen] = React.useState(false)
@@ -189,14 +189,12 @@ function CreateUserDialog({ onCreated }: { onCreated?: () => void }) {
 
 const ORG_TYPES = [
   { value: "club", label: "Câu lạc bộ" },
-  { value: "department", label: "Khoa / Phòng ban" },
-  { value: "company", label: "Công ty" },
-  { value: "university", label: "Trường đại học" },
+  { value: "organization", label: "Tổ chức / Đơn vị" },
 ]
 
 function PromoteUserDialog({ user, onDone, onClose }: { user: Student; onDone?: () => void; onClose: () => void }) {
   const [loading, setLoading] = React.useState(false)
-  const [targetRole, setTargetRole] = React.useState<"admin" | "organization_leader" | "club">("admin")
+  const [targetRole, setTargetRole] = React.useState<"admin" | "organization_leader">("admin")
   const [org, setOrg] = React.useState({
     organizationName: "",
     organizationType: "club",
@@ -209,7 +207,7 @@ function PromoteUserDialog({ user, onDone, onClose }: { user: Student; onDone?: 
     setLoading(true)
     try {
       const body: Record<string, any> = { role: targetRole }
-      if (targetRole === "organization_leader" || targetRole === "club") {
+      if (targetRole === "organization_leader") {
         body.organization = {
           organizationName: org.organizationName,
           organizationType: org.organizationType,
@@ -222,7 +220,11 @@ function PromoteUserDialog({ user, onDone, onClose }: { user: Student; onDone?: 
         body
       ) as any
       if (!res?.success) throw new Error(res?.message || "Phân quyền thất bại")
-      const label = targetRole === "admin" ? "Admin" : targetRole === "club" ? `Trưởng CLB "${org.organizationName}"` : `Trưởng tổ chức "${org.organizationName}"`
+      const label = targetRole === "admin"
+        ? "Admin"
+        : org.organizationType === "club"
+          ? `Trưởng CLB "${org.organizationName}"`
+          : `Trưởng tổ chức "${org.organizationName}"`
       toast.success(`${user.userName} đã được phân quyền ${label}`)
       onDone?.()
       onClose()
@@ -244,30 +246,25 @@ function PromoteUserDialog({ user, onDone, onClose }: { user: Student; onDone?: 
             <Label>Vai trò mới</Label>
             <select
               value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value as "admin" | "organization_leader" | "club")}
+              onChange={(e) => setTargetRole(e.target.value as "admin" | "organization_leader")}
               className="w-full border border-input bg-background rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="admin">Admin hệ thống</option>
-              <option value="organization_leader">Trưởng tổ chức</option>
-              <option value="club">Trưởng câu lạc bộ</option>
+              <option value="organization_leader">Trưởng CLB / Tổ chức</option>
             </select>
           </div>
 
-          {(targetRole === "organization_leader" || targetRole === "club") && (
+          {targetRole === "organization_leader" && (
             <div className="flex flex-col gap-3 rounded-lg border border-dashed border-muted-foreground/40 p-4">
-              <p className="text-sm font-medium text-muted-foreground">
-                {targetRole === "club" ? "Thông tin câu lạc bộ" : "Thông tin tổ chức"}
-              </p>
+              <p className="text-sm font-medium text-muted-foreground">Thông tin CLB / Tổ chức</p>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="promo-org-name">
-                  {targetRole === "club" ? "Tên CLB *" : "Tên tổ chức *"}
-                </Label>
+                <Label htmlFor="promo-org-name">Tên *</Label>
                 <Input
                   id="promo-org-name"
                   value={org.organizationName}
                   onChange={(e) => setOrg((o) => ({ ...o, organizationName: e.target.value }))}
-                  required={targetRole === "organization_leader" || targetRole === "club"}
-                  placeholder={targetRole === "club" ? "VD: CLB Lập trình BKU" : "VD: Đoàn trường"}
+                  required
+                  placeholder={org.organizationType === "club" ? "VD: CLB Lập trình BKU" : "VD: Đoàn trường"}
                 />
               </div>
               <div className="flex flex-col gap-1">

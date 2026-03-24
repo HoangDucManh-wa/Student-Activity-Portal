@@ -127,6 +127,26 @@ const exchangeGoogleCode = async (req, res, next) => {
   }
 };
 
+const forgotPasswordOrganization = async (req, res, next) => {
+  try {
+    await authService.forgotPasswordOrganization(req.body.email);
+    return success(res, {
+      message: "If the email exists, a reset link has been sent",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resetPasswordOrganization = async (req, res, next) => {
+  try {
+    await authService.resetPasswordOrganization(req.body.token, req.body.newPassword);
+    return success(res, { message: "Password reset successful" });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -140,4 +160,6 @@ module.exports = {
   resendOtp,
   googleCallback,
   exchangeGoogleCode,
+  forgotPasswordOrganization,
+  resetPasswordOrganization,
 };

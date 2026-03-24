@@ -32,3 +32,17 @@ export async function getMe(token?: string) {
 export async function logout(refreshToken?: string) {
   return http.post<{ success: boolean }>("/api/auth/logout", { refreshToken });
 }
+
+export async function forgotPasswordOrganization(email: string) {
+  return http.post<{ success: boolean; data: { message: string } }>(
+    "/api/auth/forgot-password/organization",
+    { email }
+  );
+}
+
+export async function resetPasswordOrganization(token: string, newPassword: string) {
+  return http.post<{ success: boolean; data: { message: string } }>(
+    "/api/auth/reset-password/organization",
+    { token, newPassword }
+  );
+}

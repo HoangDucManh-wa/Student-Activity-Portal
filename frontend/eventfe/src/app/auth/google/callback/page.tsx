@@ -32,7 +32,7 @@ function GoogleCallbackContent() {
       toast.success("Đăng nhập thành công")
 
       if (role === "admin") {
-        router.replace("/admin")
+        router.replace("/admin/management-account")
       } else if (role === "organization_leader") {
         router.replace("/organization")
       } else {

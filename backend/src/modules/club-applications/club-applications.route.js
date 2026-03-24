@@ -3,7 +3,7 @@ const controller = require("./club-applications.controller");
 const validate = require("../../middlewares/validate.middleware");
 const { validateQuery } = require("../../middlewares/validate.middleware");
 const { protect } = require("../../middlewares/auth.middleware");
-const { authorize } = require("../../middlewares/role.middleware");
+const { authorize, authorizeOrgType } = require("../../middlewares/role.middleware");
 const {
   createApplicationSchema,
   updateApplicationSchema,
@@ -35,17 +35,19 @@ router.put(
   controller.updateApplication
 );
 
-// ─── Org-based applications ──────────────────────────────────────────────────
+// ─── Club-only: org-based applications ───────────────────────────────────────
 router.post("/org/:orgId", controller.createOrgApplication);
 router.get("/org/:orgId/my", controller.getMyOrgApplication);
 router.get(
   "/org/:orgId",
   authorize("admin", "organization_leader"),
+  authorizeOrgType("club"),
   controller.getApplicationsByOrg
 );
 router.post(
   "/org/:orgId/accept",
   authorize("admin", "organization_leader"),
+  authorizeOrgType("club"),
   controller.acceptFormRespondents
 );
 

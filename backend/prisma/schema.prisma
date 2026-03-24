@@ -83,6 +83,7 @@ model Organization {
   forms                 Form[]
   organizationDocuments OrganizationDocument[]
   organizationMembers   OrganizationMember[]
+  organizationGroups    OrganizationGroup[]
   recruitmentForm       Form?                  @relation("OrgRecruitmentForm", fields: [recruitmentFormId], references: [formId])
   systemConfigs         SystemConfig[]
 
@@ -93,6 +94,7 @@ model OrganizationMember {
   userId         Int
   organizationId Int
   role           String?
+  groupId        Int?
   joinDate       DateTime?    @db.Date
   isDeleted      Boolean      @default(false)
   createdAt      DateTime     @default(now())
@@ -102,11 +104,27 @@ model OrganizationMember {
   updatedBy      Int?
   deletedBy      Int?
 
-  organization   Organization @relation(fields: [organizationId], references: [organizationId])
-  user           User         @relation(fields: [userId], references: [userId])
+  organization   Organization      @relation(fields: [organizationId], references: [organizationId])
+  user           User              @relation(fields: [userId], references: [userId])
+  group          OrganizationGroup? @relation(fields: [groupId], references: [groupId])
 
   @@id([userId, organizationId])
   @@map("organization_members")
+}
+
+model OrganizationGroup {
+  groupId        Int                  @id @default(autoincrement())
+  organizationId Int
+  groupName      String
+  description    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now())
+
+  organization   Organization         @relation(fields: [organizationId], references: [organizationId])
+  members        OrganizationMember[]
+
+  @@unique([organizationId, groupName])
+  @@map("organization_groups")
 }
 
 model OrganizationDocument {
@@ -238,6 +256,7 @@ model Registration {
   registrationCheckins RegistrationCheckin[]
   review               Review?
   teamMembers          TeamMember[]
+  formResponses        FormResponse[]
 
   @@unique([userId, activityId])
   @@map("registrations")
@@ -473,7 +492,7 @@ model Form {
   description         String?
   headerImageUrl      String?
   confirmationMessage String?
-  status              String         @default("draft")
+  status              String         @default("open")
   collectEmail        Boolean        @default(false)
   limitOneResponse    Boolean        @default(true)
   allowEditResponse   Boolean        @default(false)
@@ -579,18 +598,20 @@ model GridRow {
 }
 
 model FormResponse {
-  responseId      Int      @id @default(autoincrement())
-  status          String   @default("submitted")
+  responseId      Int           @id @default(autoincrement())
+  status          String        @default("submitted")
   respondentEmail String?
-  submittedAt     DateTime @default(now())
+  submittedAt     DateTime      @default(now())
   formId          Int
   userId          Int?
-  isDeleted       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now())
+  registrationId  Int?
+  isDeleted       Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now())
 
-  form            Form     @relation(fields: [formId], references: [formId])
-  user            User?    @relation(fields: [userId], references: [userId])
+  form            Form          @relation(fields: [formId], references: [formId])
+  user            User?         @relation(fields: [userId], references: [userId])
+  registration    Registration? @relation(fields: [registrationId], references: [registrationId])
   answers         Answer[]
 
   @@map("form_responses")

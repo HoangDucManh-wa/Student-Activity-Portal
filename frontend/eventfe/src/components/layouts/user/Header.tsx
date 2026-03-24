@@ -70,25 +70,29 @@ export function Header({ isClub = false }: { isClub?: boolean }) {
 
               <div className="absolute top-[60px] left-0 bg-[#05566B] hidden group-hover:block shadow-lg z-50 w-[250px] rounded-[8px]">
                 <Link
-                  href="/organization/club/info"
+                  href={isClubType ? "/organization/club/info" : "/organization/info"}
                   className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
                 >
                   {isClubType ? "Thông tin CLB" : "Thông tin tổ chức"}
                 </Link>
 
-                <Link
-                  href="/organization/club/member"
-                  className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
-                >
-                  Thành viên
-                </Link>
+                {isClubType && (
+                  <Link
+                    href="/organization/club/member"
+                    className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
+                  >
+                    Thành viên
+                  </Link>
+                )}
 
-                <Link
-                  href="/organization/club/candidate"
-                  className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
-                >
-                  Ứng viên
-                </Link>
+                {isClubType && (
+                  <Link
+                    href="/organization/club/candidate"
+                    className="block px-6 py-4 text-white uppercase font-bold tracking-wider text-[13px] hover:bg-teal-700 rounded-[8px]"
+                  >
+                    Ứng viên
+                  </Link>
+                )}
 
                 <Link
                   href="/organization/forms"

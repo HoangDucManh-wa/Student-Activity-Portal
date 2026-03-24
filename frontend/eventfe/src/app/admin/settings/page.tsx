@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Settings, ToggleLeft, ToggleRight, Trash2, Plus } from "lucide-react"
+import { Settings, ToggleLeft, ToggleRight, Trash2, Plus, GripVertical, ImageIcon } from "lucide-react"
+import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getAllConfigs,
@@ -20,6 +21,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   registration: "Dang ky",
   organization: "To chuc",
   system: "He thong",
+  homepage: "Trang chu",
+  student: "Sinh vien",
 }
 
 interface OrgOption {
@@ -232,6 +235,152 @@ function OrgOverridesSection({
   )
 }
 
+interface BannerSlide {
+  imageUrl: string
+  linkUrl: string
+  alt: string
+}
+
+function ConfigBannerSlides({
+  config,
+  onUpdate,
+  isPending,
+}: {
+  config: SystemConfigItem
+  onUpdate: (key: string, value: Record<string, unknown>) => void
+  isPending: boolean
+}) {
+  const raw = (config.value as { slides?: BannerSlide[] })?.slides ?? []
+  const [slides, setSlides] = useState<BannerSlide[]>(raw)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    setSlides((config.value as { slides?: BannerSlide[] })?.slides ?? [])
+    setDirty(false)
+  }, [config.value])
+
+  const update = (idx: number, field: keyof BannerSlide, val: string) => {
+    setSlides((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: val } : s)))
+    setDirty(true)
+  }
+
+  const addSlide = () => {
+    setSlides((prev) => [...prev, { imageUrl: "", linkUrl: "", alt: `Banner ${prev.length + 1}` }])
+    setDirty(true)
+  }
+
+  const removeSlide = (idx: number) => {
+    setSlides((prev) => prev.filter((_, i) => i !== idx))
+    setDirty(true)
+  }
+
+  const save = () => {
+    onUpdate(config.key, { slides })
+    setDirty(false)
+  }
+
+  return (
+    <div className="py-4 px-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="font-medium text-sm">{config.label}</p>
+          {config.description && (
+            <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+          )}
+          <span className="text-xs text-gray-400 font-mono mt-1 block">{config.key}</span>
+        </div>
+        {dirty && (
+          <button
+            onClick={save}
+            disabled={isPending}
+            className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            Luu thay doi
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {slides.map((slide, idx) => (
+          <div key={idx} className="border rounded-lg p-3 bg-gray-50">
+            <div className="flex items-start gap-3">
+              <GripVertical className="w-4 h-4 text-gray-300 mt-2 shrink-0" />
+
+              {/* Preview */}
+              <div className="w-20 h-12 rounded overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
+                {slide.imageUrl ? (
+                  <Image
+                    src={slide.imageUrl}
+                    alt={slide.alt || "preview"}
+                    width={80}
+                    height={48}
+                    className="w-full h-full object-cover"
+                    onError={() => {}}
+                    unoptimized
+                  />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+
+              <div className="flex-1 grid grid-cols-1 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">URL anh *</label>
+                  <input
+                    type="text"
+                    placeholder="https://... hoac /slide.png"
+                    value={slide.imageUrl}
+                    onChange={(e) => update(idx, "imageUrl", e.target.value)}
+                    className="w-full px-2 py-1 border rounded text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-0.5 block">Link khi click (tuy chon)</label>
+                    <input
+                      type="text"
+                      placeholder="https://..."
+                      value={slide.linkUrl}
+                      onChange={(e) => update(idx, "linkUrl", e.target.value)}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-0.5 block">Alt text</label>
+                    <input
+                      type="text"
+                      placeholder="Mo ta anh"
+                      value={slide.alt}
+                      onChange={(e) => update(idx, "alt", e.target.value)}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => removeSlide(idx)}
+                className="text-red-400 hover:text-red-600 mt-1 shrink-0"
+                title="Xoa slide"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={addSlide}
+        className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Them slide moi
+      </button>
+    </div>
+  )
+}
+
 export default function AdminSettingsPage() {
   const queryClient = useQueryClient()
 
@@ -290,6 +439,17 @@ export default function AdminSettingsPage() {
       return (
         <div key={config.configId}>
           <ConfigNumber
+            config={config}
+            onUpdate={handleUpdate}
+            isPending={updateMut.isPending}
+          />
+        </div>
+      )
+    }
+    if (config.key === "homepage.banner_slides") {
+      return (
+        <div key={config.configId} className="border-b last:border-b-0">
+          <ConfigBannerSlides
             config={config}
             onUpdate={handleUpdate}
             isPending={updateMut.isPending}

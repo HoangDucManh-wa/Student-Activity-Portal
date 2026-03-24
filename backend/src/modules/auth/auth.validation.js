@@ -3,7 +3,7 @@ const { z } = require("zod");
 const registerSchema = z.object({
   userName: z.string().min(2, "Name must be at least 2 characters").max(255),
   email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   university: z.string().min(1, "University is required").max(255),
   studentId: z.string().max(50).optional(),
   phoneNumber: z.string().max(20).optional(),
@@ -41,6 +41,15 @@ const resendOtpSchema = z.object({
   email: z.string().email("Invalid email"),
 });
 
+const forgotPasswordOrganizationSchema = z.object({
+  email: z.string().email("Invalid email"),
+});
+
+const resetPasswordOrganizationSchema = z.object({
+  token: z.string().min(1, "Invalid token"),
+  newPassword: z.string().min(6, "New password must be at least 6 characters"),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -50,4 +59,6 @@ module.exports = {
   refreshTokenSchema,
   verifyOtpSchema,
   resendOtpSchema,
+  forgotPasswordOrganizationSchema,
+  resetPasswordOrganizationSchema,
 };

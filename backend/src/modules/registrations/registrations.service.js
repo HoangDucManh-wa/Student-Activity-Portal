@@ -226,13 +226,31 @@ const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, st
     ...(status && { status }),
     ...(registrationType && { registrationType }),
     ...(search && {
-      user: {
-        OR: [
-          { userName: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { studentId: { contains: search, mode: "insensitive" } },
-        ],
-      },
+      OR: [
+        {
+          user: {
+            OR: [
+              { userName: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+              { studentId: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        },
+        {
+          teamMembers: {
+            some: {
+              isDeleted: false,
+              user: {
+                OR: [
+                  { userName: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                  { studentId: { contains: search, mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        },
+      ],
     }),
     ...(checkinStatus === "checkin" && {
       registrationCheckins: { some: { checkInTime: { not: null }, checkOutTime: null } },
@@ -261,7 +279,21 @@ const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, st
         },
         teamMembers: {
           where: { isDeleted: false },
-          include: { user: { select: { userId: true, userName: true } } },
+          include: {
+            user: {
+              select: {
+                userId: true,
+                userName: true,
+                email: true,
+                studentId: true,
+                phoneNumber: true,
+                university: true,
+                faculty: true,
+                className: true,
+                avatarUrl: true,
+              },
+            },
+          },
         },
         registrationCheckins: {
           orderBy: { checkInTime: "desc" },
@@ -277,6 +309,19 @@ const getRegistrationsByActivity = async (activityId, { page = 1, limit = 20, st
 
   for (const item of data) {
     if (item.user) await resolveFields(item.user, ["avatarUrl"]);
+    if (Array.isArray(item.teamMembers)) {
+      const seenMemberIds = new Set();
+      item.teamMembers = item.teamMembers.filter((tm) => {
+        if (!tm?.userId) return false;
+        if (tm.userId === item.userId) return false;
+        if (seenMemberIds.has(tm.userId)) return false;
+        seenMemberIds.add(tm.userId);
+        return true;
+      });
+      for (const tm of item.teamMembers) {
+        if (tm.user) await resolveFields(tm.user, ["avatarUrl"]);
+      }
+    }
   }
 
   return {
@@ -441,7 +486,7 @@ const getActivityParticipantStats = async (activityId) => {
   if (!activity) throw new AppError("ACTIVITY_NOT_FOUND");
 
   const aid = Number(activityId);
-  const [pending, approved, rejected, cancelled, waiting, checkedIn, checkedOut] = await Promise.all([
+  const [pending, approved, rejected, cancelled, waiting, checkedIn, checkedOut, regUsers, teamUsers] = await Promise.all([
     prisma.registration.count({ where: { activityId: aid, isDeleted: false, status: REGISTRATION_STATUS.PENDING } }),
     prisma.registration.count({ where: { activityId: aid, isDeleted: false, status: REGISTRATION_STATUS.APPROVED } }),
     prisma.registration.count({ where: { activityId: aid, isDeleted: false, status: REGISTRATION_STATUS.REJECTED } }),
@@ -461,10 +506,30 @@ const getActivityParticipantStats = async (activityId) => {
         registrationCheckins: { some: { checkOutTime: { not: null } } },
       },
     }),
+    prisma.registration.findMany({
+      where: { activityId: aid, isDeleted: false },
+      select: { userId: true },
+    }),
+    prisma.teamMember.findMany({
+      where: {
+        isDeleted: false,
+        registration: {
+          activityId: aid,
+          isDeleted: false,
+        },
+      },
+      select: { userId: true },
+    }),
+  ]);
+
+  const participantUserIds = new Set([
+    ...regUsers.map((u) => u.userId),
+    ...teamUsers.map((u) => u.userId),
   ]);
 
   return {
     total: pending + approved + rejected + cancelled + waiting,
+    totalParticipants: participantUserIds.size,
     pending,
     approved,
     rejected,
@@ -539,6 +604,110 @@ const matchTeam = async ({ activityId, teamName, leaderRegistrationId, memberReg
   return { success: true, teamName: teamName.trim() };
 };
 
+// ─── Create registration with form (transaction) ────────────────────────────
+
+const createRegistrationWithForm = async (data, userId) => {
+  const { activityId, registrationType, teamName, isLookingForTeam, teamMembers, formResponse } = data;
+
+  // Pre-validation
+  const activity = await prisma.activity.findFirst({
+    where: { activityId, isDeleted: false },
+  });
+  if (!activity) throw new AppError("ACTIVITY_NOT_FOUND");
+
+  if (![ACTIVITY_STATUS.PUBLISHED, ACTIVITY_STATUS.RUNNING].includes(activity.activityStatus)) {
+    throw new AppError("ACTIVITY_CANNOT_MODIFY", "Hoạt động chưa mở đăng ký");
+  }
+
+  if (activity.registrationDeadline && new Date() > activity.registrationDeadline) {
+    throw new AppError("REGISTRATION_DEADLINE_PASSED");
+  }
+
+  // Validate form exists if formResponse provided
+  if (formResponse) {
+    const form = await prisma.form.findFirst({
+      where: { formId: formResponse.formId, isDeleted: false },
+    });
+    if (!form) throw new AppError("FORM_NOT_FOUND", "Form đăng ký không tồn tại");
+  }
+
+  // Check duplicate registration
+  const existing = await prisma.registration.findFirst({
+    where: { userId, activityId, isDeleted: false },
+  });
+  if (existing) throw new AppError("REGISTRATION_DUPLICATE", "Bạn đã đăng ký hoạt động này rồi");
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Create Registration
+    const reg = await tx.registration.create({
+      data: {
+        userId,
+        activityId,
+        registrationType: registrationType || "individual",
+        teamName: teamName || null,
+        isLookingForTeam: isLookingForTeam || null,
+        status: REGISTRATION_STATUS.PENDING,
+        createdBy: userId,
+      },
+    });
+
+    // 2. Create TeamMember records
+    if (teamMembers && teamMembers.length > 0) {
+      const teamMemberData = teamMembers.map((m) => ({
+        registrationId: reg.registrationId,
+        userId: m.userId,
+        role: m.role || "member",
+        createdBy: userId,
+      }));
+      await tx.teamMember.createMany({ data: teamMemberData, skipDuplicates: true });
+    }
+
+    // 3. Create FormResponse + Answers if provided
+    if (formResponse) {
+      const fr = await tx.formResponse.create({
+        data: {
+          formId: formResponse.formId,
+          userId,
+          registrationId: reg.registrationId,
+          status: "submitted",
+        },
+      });
+
+      if (formResponse.answers && formResponse.answers.length > 0) {
+        for (const ans of formResponse.answers) {
+          const answer = await tx.answer.create({
+            data: {
+              questionId: ans.questionId,
+              responseId: fr.responseId,
+              textValue: ans.textValue || null,
+              fileUrl: ans.fileUrl || null,
+            },
+          });
+
+          // Create answer options if provided
+          if (ans.optionIds && ans.optionIds.length > 0) {
+            await tx.answerOption.createMany({
+              data: ans.optionIds.map((optionId) => ({
+                answerId: answer.answerId,
+                optionId,
+              })),
+            });
+          }
+        }
+      }
+    }
+
+    return reg;
+  }, { isolationLevel: "Serializable" });
+
+  // Invalidate activity detail cache
+  try {
+    await cache.del(`${cache.REDIS_PREFIX.ACTIVITY_DETAIL}${activityId}`);
+  } catch (_) {}
+
+  return result;
+};
+
 module.exports = {
   createRegistration,
   cancelRegistration,
@@ -553,4 +722,5 @@ module.exports = {
   getActivityParticipantStats,
   promoteWaitlist,
   matchTeam,
+  createRegistrationWithForm,
 };

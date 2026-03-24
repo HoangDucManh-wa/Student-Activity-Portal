@@ -40,14 +40,26 @@ const STATUS_TABS = [
   { value: "cancelled", label: "Đã hủy" },
 ]
 
+const TYPE_TABS = [
+  { value: "", label: "Tất cả loại" },
+  { value: "program", label: "Chương trình" },
+  { value: "competition", label: "Cuộc thi" },
+]
+
 export default function OrgEventPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState("")
+  const [activeType, setActiveType] = useState("")
   const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["my-org-activities", activeTab, page],
-    queryFn: () => getMyOrgActivities({ page, limit: 10, status: activeTab || undefined }),
+    queryKey: ["my-org-activities", activeTab, activeType, page],
+    queryFn: () => getMyOrgActivities({
+      page,
+      limit: 10,
+      status: activeTab || undefined,
+      type: activeType || undefined,
+    }),
   })
 
   // Badge counts

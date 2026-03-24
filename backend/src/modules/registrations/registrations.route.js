@@ -11,6 +11,7 @@ const {
   updateRegistrationStatusSchema,
   bulkUpdateStatusSchema,
   checkinSchema,
+  createRegistrationWithFormSchema,
 } = require("./registrations.validation");
 
 const router = Router();
@@ -19,6 +20,7 @@ router.use(protect);
 
 // ─── Student (any authenticated) ────────────────────────────────────────────
 router.post("/", validate(createRegistrationSchema), controller.createRegistration);
+router.post("/with-form", validate(createRegistrationWithFormSchema), controller.createRegistrationWithForm);
 router.get("/my", validateQuery(getMyRegistrationsQuerySchema), controller.getMyRegistrations);
 // Trả về registration hiện tại của user cho 1 activity (dùng cho event detail button states)
 router.get("/my/activity/:activityId", controller.getMyRegistrationByActivity);
@@ -57,7 +59,7 @@ router.put(
 
 router.post(
   "/match-team",
-  authorize("admin", "organization_leader", "club"),
+  authorize("admin", "organization_leader"),
   controller.matchTeam
 );
 

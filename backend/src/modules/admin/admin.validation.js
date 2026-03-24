@@ -1,6 +1,6 @@
 const { z } = require("zod");
 
-const roleEnum = z.enum(["student", "organization_leader", "organization_member", "club", "admin"]);
+const roleEnum = z.enum(["student", "organization_leader", "organization_member", "admin"]);
 
 const createUserSchema = z.object({
   userName: z.string().min(2, "Name must be at least 2 characters").max(255),
@@ -14,7 +14,7 @@ const createUserSchema = z.object({
   role: roleEnum.default("student"),
 });
 
-const orgTypeEnum = z.enum(["university", "club", "department", "company"]);
+const orgTypeEnum = z.enum(["organization", "club"]);
 
 const createOrganizationSchema = z.object({
   organizationName: z.string().min(1, "Organization name is required").max(255),
@@ -29,4 +29,21 @@ const createOrganizationSchema = z.object({
   leaderPhoneNumber: z.string().max(20).optional(),
 });
 
-module.exports = { createUserSchema, createOrganizationSchema };
+const listUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z.string().optional(),
+  university: z.string().optional(),
+  emailType: z.string().optional(),
+});
+
+const listUsersByUniversityQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z.string().optional(),
+  university: z.string().optional(),
+});
+
+module.exports = { createUserSchema, createOrganizationSchema, listUsersQuerySchema, listUsersByUniversityQuerySchema };

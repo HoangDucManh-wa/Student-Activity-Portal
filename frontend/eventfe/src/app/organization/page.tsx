@@ -93,8 +93,8 @@ function RunningEventCard({ activity, index }: { activity: ActivityType; index: 
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-              Đang diễn ra
+            <span className="text-xs font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
+              Sắp diễn ra
             </span>
             <ArrowRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0E5C63] group-hover:translate-x-0.5 transition-all" />
           </div>
@@ -117,9 +117,18 @@ export default function OrganizationDashboard() {
     enabled: !!org?.organizationId,
   })
 
+  const now = new Date()
+  const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
   const { data: activitiesData, isLoading: activitiesLoading } = useQuery({
-    queryKey: ["org-activities-running"],
-    queryFn: () => getMyOrgActivities({ limit: 4, page: 1, status: "running" }),
+    queryKey: ["org-activities-upcoming"],
+    queryFn: () => getMyOrgActivities({
+      limit: 4,
+      page: 1,
+      status: "published",
+      startDate: now.toISOString(),
+      endDate: oneWeekLater.toISOString(),
+    }),
     enabled: !!org?.organizationId,
   })
 
@@ -162,7 +171,7 @@ export default function OrganizationDashboard() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="font-semibold text-gray-800">Sự kiện đang diễn ra</h2>
+            <h2 className="font-semibold text-gray-800">Sự kiện sắp diễn ra</h2>
             <p className="text-xs text-gray-400 mt-0.5">Nhấn vào thẻ để quản lý sự kiện</p>
           </div>
           <Link
@@ -188,7 +197,7 @@ export default function OrganizationDashboard() {
         ) : (
           <div className="text-center py-12">
             <Activity className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm">Chưa có sự kiện nào đang diễn ra</p>
+            <p className="text-gray-400 text-sm">Chưa có sự kiện nào sắp diễn ra trong tuần tới</p>
             <Link href="/organization/event" className="inline-block mt-3 text-xs text-[#0E5C63] hover:underline">
               Xem tất cả sự kiện
             </Link>

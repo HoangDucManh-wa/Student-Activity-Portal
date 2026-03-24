@@ -94,6 +94,22 @@ const updateMyOrgConfig = async (req, res, next) => {
   }
 };
 
+// Keys that may be fetched publicly (no auth required)
+const PUBLIC_CONFIG_KEYS = ["homepage.banner_slides"];
+
+const getPublicConfig = async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    if (!PUBLIC_CONFIG_KEYS.includes(key)) {
+      return res.status(403).json({ success: false, error: "Config is not publicly accessible" });
+    }
+    const value = await configService.getConfig(key);
+    return success(res, { key, value });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAllConfigs,
   getConfigsByCategory,
@@ -104,4 +120,5 @@ module.exports = {
   deleteOrgOverride,
   getMyOrgConfig,
   updateMyOrgConfig,
+  getPublicConfig,
 };

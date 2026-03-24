@@ -27,6 +27,25 @@ const STATUS_TABS = [
 
 type TabValue = (typeof STATUS_TABS)[number]["value"];
 
+type ParticipantRow = {
+  key: string;
+  registrationId: number;
+  status: string;
+  teamName?: string;
+  roleLabel: "Trưởng nhóm" | "Thành viên";
+  canApprove: boolean;
+  user: {
+    userName: string;
+    email: string;
+    studentId: string | null;
+    phoneNumber: string | null;
+    university: string | null;
+    faculty: string | null;
+    className: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 function Avatar({ src, name }: { src?: string | null; name: string }) {
   const initials = name
     .split(" ")
@@ -112,6 +131,57 @@ export default function ParticipantsPage() {
   const meta = (regData as any)?.data?.meta;
   const stats = (statsData as any)?.data;
 
+  const participantRows: ParticipantRow[] = registrations.flatMap((r) => {
+    const leader: ParticipantRow = {
+      key: `reg-${r.registrationId}-leader`,
+      registrationId: r.registrationId,
+      status: r.status,
+      teamName: r.teamName ?? undefined,
+      roleLabel: "Trưởng nhóm",
+      canApprove: true,
+      user: {
+        userName: r.user?.userName ?? "—",
+        email: r.user?.email ?? "—",
+        studentId: r.user?.studentId ?? null,
+        phoneNumber: r.user?.phoneNumber ?? null,
+        university: r.user?.university ?? null,
+        faculty: r.user?.faculty ?? null,
+        className: r.user?.className ?? null,
+        avatarUrl: r.user?.avatarUrl ?? null,
+      },
+    };
+
+    const seenMemberIds = new Set<number>();
+    const members: ParticipantRow[] = (r.teamMembers ?? [])
+      .filter((tm) => {
+        if (!tm?.userId) return false;
+        if (tm.userId === r.userId) return false;
+        if (seenMemberIds.has(tm.userId)) return false;
+        seenMemberIds.add(tm.userId);
+        return true;
+      })
+      .map((tm) => ({
+        key: `reg-${r.registrationId}-member-${tm.userId}`,
+        registrationId: r.registrationId,
+        status: r.status,
+        teamName: r.teamName ?? undefined,
+        roleLabel: "Thành viên",
+        canApprove: false,
+        user: {
+          userName: tm.user?.userName ?? "—",
+          email: tm.user?.email ?? "—",
+          studentId: tm.user?.studentId ?? null,
+          phoneNumber: tm.user?.phoneNumber ?? null,
+          university: tm.user?.university ?? null,
+          faculty: tm.user?.faculty ?? null,
+          className: tm.user?.className ?? null,
+          avatarUrl: tm.user?.avatarUrl ?? null,
+        },
+      }));
+
+    return [leader, ...members];
+  });
+
   // ── Mutations ───────────────────────────────────────────────────────────────
 
   const invalidate = () => {
@@ -186,18 +256,20 @@ export default function ParticipantsPage() {
   // ── Excel export ────────────────────────────────────────────────────────────
 
   function exportExcel() {
-    const rows = registrations.map((r, i) => ({
+    const rows = participantRows.map((r, i) => ({
       STT: i + 1,
-      "Họ tên": r.user?.userName ?? "",
-      Email: r.user?.email ?? "",
-      "Mã SV": r.user?.studentId ?? "",
-      "Điện thoại": r.user?.phoneNumber ?? "",
-      Trường: r.user?.university ?? "",
-      Khoa: r.user?.faculty ?? "",
-      Lớp: r.user?.className ?? "",
+      "Họ tên": r.user.userName,
+      Email: r.user.email,
+      "Mã SV": r.user.studentId ?? "",
+      "Điện thoại": r.user.phoneNumber ?? "",
+      Trường: r.user.university ?? "",
+      Khoa: r.user.faculty ?? "",
+      Lớp: r.user.className ?? "",
+      "Vai trò": r.roleLabel,
+      "Tên đội": r.teamName ?? "",
       "Trạng thái": r.status,
-      "Thời gian đăng ký": r.registrationTime
-        ? new Date(r.registrationTime).toLocaleString("vi-VN")
+      "Thời gian đăng ký": registrations.find((item) => item.registrationId === r.registrationId)?.registrationTime
+        ? new Date(registrations.find((item) => item.registrationId === r.registrationId)?.registrationTime as string).toLocaleString("vi-VN")
         : "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -297,36 +369,46 @@ export default function ParticipantsPage() {
               <div className="py-16 text-center text-red-500 text-sm">
                 Không tải được dữ liệu. Vui lòng thử lại.
               </div>
-            ) : registrations.length === 0 ? (
+            ) : participantRows.length === 0 ? (
               <div className="py-16 text-center text-gray-400 text-sm">
                 Không có dữ liệu
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {registrations.map((r) => (
+                {participantRows.map((r) => (
                   <div
-                    key={r.registrationId}
+                    key={r.key}
                     className={`grid grid-cols-[28px_2fr_2fr_1.2fr_90px_130px] gap-2 items-center px-4 py-2.5 text-sm hover:bg-gray-50 ${
-                      selected.has(r.registrationId) ? "bg-teal-50" : ""
+                      selected.has(r.registrationId) && r.canApprove ? "bg-teal-50" : ""
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(r.registrationId)}
-                      onChange={() => toggleOne(r.registrationId)}
-                      className="cursor-pointer"
-                    />
+                    {r.canApprove ? (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.registrationId)}
+                        onChange={() => toggleOne(r.registrationId)}
+                        className="cursor-pointer"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-300">•</span>
+                    )}
                     <div className="flex items-center gap-2 min-w-0">
-                      <Avatar src={r.user?.avatarUrl} name={r.user?.userName ?? "?"} />
-                      <span className="truncate font-medium">{r.user?.userName ?? "—"}</span>
+                      <Avatar src={r.user.avatarUrl} name={r.user.userName} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{r.user.userName}</p>
+                        <p className="text-[10px] text-gray-400">
+                          {r.roleLabel}
+                          {r.teamName ? ` · ${r.teamName}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    <span className="truncate text-gray-500">{r.user?.email ?? "—"}</span>
-                    <span className="text-gray-500">{r.user?.studentId ?? "—"}</span>
+                    <span className="truncate text-gray-500">{r.user.email}</span>
+                    <span className="text-gray-500">{r.user.studentId ?? "—"}</span>
                     <StatusBadge status={r.status} />
 
                     {/* Row actions */}
                     <div className="flex gap-1.5">
-                      {(r.status === "pending" || r.status === "waiting") && (
+                      {r.canApprove && (r.status === "pending" || r.status === "waiting") && (
                         <button
                           onClick={() => updateMut.mutate({ regId: r.registrationId, status: "approved" })}
                           disabled={updateMut.isPending}
@@ -335,7 +417,7 @@ export default function ParticipantsPage() {
                           Duyệt
                         </button>
                       )}
-                      {r.status === "pending" && (
+                      {r.canApprove && r.status === "pending" && (
                         <button
                           onClick={() => updateMut.mutate({ regId: r.registrationId, status: "rejected" })}
                           disabled={updateMut.isPending}
@@ -343,6 +425,9 @@ export default function ParticipantsPage() {
                         >
                           Từ chối
                         </button>
+                      )}
+                      {!r.canApprove && (
+                        <span className="text-[10px] text-gray-400">Theo trạng thái đội</span>
                       )}
                     </div>
                   </div>
@@ -373,7 +458,7 @@ export default function ParticipantsPage() {
             <p className="font-semibold text-gray-700 mb-1">Thống kê</p>
             <div className="flex justify-between">
               <span className="text-gray-500">Tổng</span>
-              <span className="font-bold text-[#08667a]">{stats?.total ?? 0}</span>
+              <span className="font-bold text-[#08667a]">{stats?.totalParticipants ?? stats?.total ?? 0}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Chờ duyệt</span>

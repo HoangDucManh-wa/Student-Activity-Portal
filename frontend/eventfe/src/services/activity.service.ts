@@ -199,16 +199,29 @@ export async function extendCheckoutSession(
   );
 }
 
+export async function deleteActivity(id: number | string) {
+  return http.delete<{ success: boolean }>(`${BASE}/${id}`, {});
+}
+
 export async function getMyOrgActivities({
   page = 1,
   limit = 10,
   status,
+  type,
+  startDate,
+  endDate,
 }: {
   page?: number;
   limit?: number;
   status?: string;
+  type?: string;
+  startDate?: string;
+  endDate?: string;
 } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (status) params.set("activityStatus", status);
+  if (type) params.set("activityType", type);
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
   return http.get<ActivitiesResponse>(`${BASE}/my-org?${params}`);
 }

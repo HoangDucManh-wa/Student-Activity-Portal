@@ -328,6 +328,48 @@ const exchangeGoogleCode = async (code) => {
   return JSON.parse(data);
 };
 
+const forgotPasswordOrganization = async (email) => {
+  const org = await prisma.organization.findFirst({
+    where: { email, isDeleted: false },
+  });
+
+  if (!org) return; // Don't reveal whether org exists
+
+  const resetToken = randomBytes(32).toString("hex");
+  const resetTokenHash = hashToken(resetToken);
+  await redis.setex(
+    `${REDIS_PREFIX.RESET_ORG_PWD}${resetTokenHash}`,
+    RESET_PASSWORD_TTL,
+    String(org.organizationId)
+  );
+
+  const resetUrl = `${process.env.FRONTEND_URL}/auth/organization/new-password?token=${resetToken}`;
+
+  await sendPasswordResetEmail({
+    to: org.email,
+    name: org.organizationName,
+    resetUrl,
+  }).catch(() => {});
+};
+
+const resetPasswordOrganization = async (token, newPassword) => {
+  const redisKey = `${REDIS_PREFIX.RESET_ORG_PWD}${hashToken(token)}`;
+  const orgId = await redis.get(redisKey);
+
+  if (!orgId) {
+    throw new AppError("AUTH_RESET_INVALID");
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 12);
+
+  await prisma.organization.update({
+    where: { organizationId: Number(orgId) },
+    data: { password: hashed },
+  });
+
+  await redis.del(redisKey);
+};
+
 module.exports = {
   register,
   login,
@@ -340,4 +382,6 @@ module.exports = {
   resendOtp,
   loginWithGoogle,
   exchangeGoogleCode,
+  forgotPasswordOrganization,
+  resetPasswordOrganization,
 };

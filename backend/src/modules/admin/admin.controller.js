@@ -97,6 +97,13 @@ const listUsers = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const listUsersByUniversity = async (req, res, next) => {
+  try {
+    const data = await adminService.listUsersByUniversity(req.query);
+    return success(res, data);
+  } catch (err) { next(err); }
+};
+
 const adminUpdateUser = async (req, res, next) => {
   try {
     const data = await adminService.adminUpdateUser(req.params.id, req.body, req.user.userId);
@@ -157,7 +164,8 @@ module.exports = {
   getOverviewStats, getActivityStats, getRegistrationTrend,
   createUser, importUsersFromCSV,
   createOrganization, importOrgsFromCSV,
-  listUsers, adminUpdateUser, adminDeleteUser, adminToggleUserStatus,
+  listUsers, listUsersByUniversity,
+  adminUpdateUser, adminDeleteUser, adminToggleUserStatus,
   promoteUser,
   listOrganizations, adminUpdateOrganization, adminDeleteOrganization, adminToggleOrgStatus,
 };

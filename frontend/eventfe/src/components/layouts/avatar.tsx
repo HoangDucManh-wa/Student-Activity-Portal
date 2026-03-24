@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getMe } from "@/services/auth.service"
+import { getMyOrganization } from "@/services/organization.service"
 import { useEffect, useState } from "react"
 import { Button } from "../ui/button"
 import { useAuthModal } from "@/contexts/auth-modal.context"
@@ -35,7 +36,15 @@ export function UserMenu({
   })
 
   const user = data?.data?.user
-  const isOrgLeader = user?.roles?.includes("organization_leader") || user?.roles?.includes("club")
+  const isOrgLeader = user?.roles?.includes("organization_leader")
+
+  const { data: orgData } = useQuery({
+    queryKey: ["my-organization"],
+    queryFn: getMyOrganization,
+    enabled: !!isOrgLeader,
+    staleTime: 5 * 60 * 1000,
+  })
+  const orgType = orgData?.data?.organizationType ?? null
   const initials = user?.userName
     ? user.userName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
     : "?"
@@ -48,13 +57,11 @@ export function UserMenu({
       return
     }
 
-    // Clear all cached data
     queryClient.clear()
     localStorage.clear()
     sessionStorage.clear()
-
-    router.push("/")
     toast.success("Đăng xuất thành công")
+    window.location.href = "/"
   }
 
   if (!mounted) return <div className="w-[40px] h-[40px]" />
@@ -100,7 +107,7 @@ export function UserMenu({
                   <DropdownMenuItem>
                     <Building2 />
                     <Link href="/organization">
-                      {user?.roles?.includes("club") ? "Quản lý câu lạc bộ" : "Quản lý Tổ chức"}
+                      {orgType === "club" ? "Quản lý câu lạc bộ" : "Quản lý Tổ chức"}
                     </Link>
                   </DropdownMenuItem>
                 </>

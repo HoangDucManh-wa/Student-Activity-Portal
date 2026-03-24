@@ -56,7 +56,7 @@ export function LoginForm({ onSuccess }: LoginFormProps = {}) {
     onSuccess?.()
     const role = res.user?.role ?? "student"
     if (role === "admin") {
-      router.push("/admin")
+      router.push("/admin/management-account")
     } else if (role === "organization_leader") {
       router.push("/organization")
     } else {

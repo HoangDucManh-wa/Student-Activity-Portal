@@ -20,6 +20,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { lookupUserByEmail, type UserPreview } from "@/services/registration.service"
 
 const MAX_MEMBERS = 5
 
@@ -33,32 +34,17 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-type Member = {
-  name: string
-  phone: string
-  role: string
-}
-
-// Mock lookup — thay bằng API call thực tế
-const lookupMember = (email: string): Member | null => {
-  const db: Record<string, Member> = {
-    "26a4041684@hvnh.edu.vn": { name: "Đào Thị Huyền", phone: "02342432534", role: "Thành viên" },
-    "26a4041685@hvnh.edu.vn": { name: "Nguyễn Văn An", phone: "09812345678", role: "Thành viên" },
-    "26a4041686@hvnh.edu.vn": { name: "Trần Thị Bình", phone: "09876543210", role: "Thành viên" },
-  }
-  return db[email] ?? null
-}
-
 type MemberSlot = {
   email: string
-  info: Member | null
+  info: UserPreview | null
   searched: boolean
+  searching: boolean
   isLeader: boolean
 }
 
 export function GroupForm() {
   const [slots, setSlots] = React.useState<MemberSlot[]>([
-    { email: "", info: null, searched: false, isLeader: true },
+    { email: "", info: null, searched: false, searching: false, isLeader: true },
   ])
 
   const form = useForm<FormValues>({
@@ -73,22 +59,46 @@ export function GroupForm() {
     form.setValue(`members.${index}.email`, email)
   }
 
-  const handleLookup = (index: number) => {
+  const handleLookup = async (index: number) => {
     const email = slots[index].email
-    const result = lookupMember(email)
+    if (!email || !email.includes("@")) {
+      form.setError(`members.${index}.email`, { message: "Email không hợp lệ" })
+      return
+    }
+
+    // Set searching state
     setSlots((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, info: result, searched: true } : s))
+      prev.map((s, i) => (i === index ? { ...s, searching: true } : s))
     )
-    if (!result) {
-      form.setError(`members.${index}.email`, { message: "Không tìm thấy thành viên" })
-    } else {
-      form.clearErrors(`members.${index}.email`)
+
+    try {
+      const res = await lookupUserByEmail(email)
+      const user = res?.data ?? null
+
+      setSlots((prev) =>
+        prev.map((s, i) =>
+          i === index ? { ...s, info: user, searched: true, searching: false } : s
+        )
+      )
+
+      if (!user) {
+        form.setError(`members.${index}.email`, { message: "Không tìm thấy thành viên" })
+      } else {
+        form.clearErrors(`members.${index}.email`)
+      }
+    } catch {
+      setSlots((prev) =>
+        prev.map((s, i) =>
+          i === index ? { ...s, info: null, searched: true, searching: false } : s
+        )
+      )
+      form.setError(`members.${index}.email`, { message: "Lỗi khi tìm kiếm, vui lòng thử lại" })
     }
   }
 
   const addSlot = () => {
     if (slots.length >= MAX_MEMBERS) return
-    setSlots((prev) => [...prev, { email: "", info: null, searched: false, isLeader: false }])
+    setSlots((prev) => [...prev, { email: "", info: null, searched: false, searching: false, isLeader: false }])
     form.setValue(`members.${slots.length}`, { email: "" })
   }
 
@@ -98,9 +108,18 @@ export function GroupForm() {
   }
 
   const allLeaderFound = slots[0]?.info !== null
-  const validCount = slots.filter((s) => s.info !== null).length
+  const foundSlots = slots.filter((s) => s.info !== null)
+  const validCount = foundSlots.length
 
-  function onSubmit(data: FormValues) {
+  function onSubmit() {
+    // Only submit found members
+    const teamMembers = foundSlots.map((s, i) => ({
+      userId: s.info!.userId,
+      role: s.isLeader ? "leader" : "member",
+    }))
+
+    console.log("Submitting team members:", teamMembers)
+    // TODO: integrate with registration API
   }
 
   return (
@@ -162,8 +181,9 @@ export function GroupForm() {
                           type="button"
                           variant="outline"
                           onClick={() => handleLookup(index)}
+                          disabled={slot.searching}
                         >
-                          Tìm
+                          {slot.searching ? "..." : "Tìm"}
                         </Button>
                       </div>
                       {fieldState.invalid && (
@@ -177,17 +197,17 @@ export function GroupForm() {
                 {slot.searched && slot.info && (
                   <div className="flex items-center gap-3 rounded-lg border border-[#1a6b74]/30 bg-[#1a6b74]/5 p-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1a6b74] text-white font-semibold text-sm">
-                      {slot.info.name.split(" ").slice(-1)[0][0]}
+                      {slot.info.userName.split(" ").slice(-1)[0][0]}
                     </div>
                     <div className="text-sm">
-                      <p className="font-semibold text-foreground">{slot.info.name}</p>
-                      <p className="text-muted-foreground">{slot.info.phone} · {slot.info.role}</p>
+                      <p className="font-semibold text-foreground">{slot.info.userName}</p>
+                      <p className="text-muted-foreground">{slot.info.email} · {slot.info.university}</p>
                     </div>
                     <span className="ml-auto text-[#1a6b74] font-bold">✓</span>
                   </div>
                 )}
 
-                {slot.searched && !slot.info && (
+                {slot.searched && !slot.info && !slot.searching && (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                     Không tìm thấy thành viên. Vui lòng kiểm tra lại email.
                   </div>

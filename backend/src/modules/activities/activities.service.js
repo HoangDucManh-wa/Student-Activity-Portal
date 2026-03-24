@@ -1,7 +1,7 @@
 const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
 const cache = require("../../utils/cache");
-const { ACTIVITY_STATUS, VALID_STATUS_TRANSITIONS, CONFIG_KEYS, ORG_MEMBER_ROLE } = require("../../utils/constants");
+const { ACTIVITY_STATUS, VALID_STATUS_TRANSITIONS, VALID_COMPETITION_STATUS_TRANSITIONS, ACTIVITY_TYPE, CONFIG_KEYS, ORG_MEMBER_ROLE } = require("../../utils/constants");
 const { isAdminOrOrgLeader } = require("../../utils/permissions");
 const { resolveFields, resolveNested } = require("../../utils/s3-helpers");
 
@@ -289,8 +289,15 @@ const updateActivityStatus = async (activityId, newStatus, userId, roles) => {
   const hasPermission = await isAdminOrOrgLeader(roles, activity.organizationId, userId);
   if (!hasPermission) throw new AppError("FORBIDDEN");
 
-  // Validate transition
-  const validTransitions = VALID_STATUS_TRANSITIONS[activity.activityStatus] || [];
+  // Validate transition — use competition-specific transitions if applicable
+  const getValidTransitions = (activity) => {
+    if (activity.activityType === ACTIVITY_TYPE.COMPETITION) {
+      return VALID_COMPETITION_STATUS_TRANSITIONS[activity.activityStatus] || [];
+    }
+    return VALID_STATUS_TRANSITIONS[activity.activityStatus] || [];
+  };
+
+  const validTransitions = getValidTransitions(activity);
   if (!validTransitions.includes(newStatus)) {
     throw new AppError("ACTIVITY_INVALID_TRANSITION");
   }
@@ -458,7 +465,11 @@ const getMyOrgActivities = async (userId, { page = 1, limit = 20, activityStatus
       include: {
         category: { select: { categoryId: true, categoryName: true } },
         organization: { select: { organizationId: true, organizationName: true, logoUrl: true } },
-        _count: { select: { registrations: { where: { isDeleted: false } } } },
+        _count: {
+          select: {
+            registrations: { where: { isDeleted: false } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip: (pageNum - 1) * limitNum,
@@ -467,7 +478,17 @@ const getMyOrgActivities = async (userId, { page = 1, limit = 20, activityStatus
     prisma.activity.count({ where }),
   ]);
 
+  // Compute approved registration count per activity
+  const activityIds = data.map((a) => a.activityId);
+  const approvedCounts = await prisma.registration.groupBy({
+    by: ["activityId"],
+    where: { activityId: { in: activityIds }, isDeleted: false, status: "approved" },
+    _count: { registrationId: true },
+  });
+  const approvedCountMap = Object.fromEntries(approvedCounts.map((r) => [r.activityId, r._count.registrationId]));
+
   for (const item of data) {
+    item._count.approvedCount = approvedCountMap[item.activityId] ?? 0;
     await resolveFields(item, ["coverImage"]);
     await resolveNested(item, "organization", ["logoUrl"]);
   }

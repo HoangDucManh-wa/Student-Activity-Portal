@@ -58,7 +58,10 @@ export function DialogCustom({ className, onFilter }: DialogCustomProps) {
   }))
 
   function onSubmit(data: FilterValues) {
-    onFilter(data)
+    const filters: FilterValues = { ...data }
+    if (filters.startDate) filters.startDate = new Date(filters.startDate).toISOString()
+    if (filters.endDate) filters.endDate = new Date(filters.endDate).toISOString()
+    onFilter(filters)
   }
 
   function handleReset() {

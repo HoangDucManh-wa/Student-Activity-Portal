@@ -8,6 +8,9 @@ const { updateConfigSchema, configKeyParam, orgIdParam, categoryParam } = requir
 
 const router = Router();
 
+// Public — no auth required (only whitelisted keys)
+router.get("/public/:key", controller.getPublicConfig);
+
 router.use(protect);
 
 // ─── Org-leader self-service (before admin auth wall) ────────────────────────

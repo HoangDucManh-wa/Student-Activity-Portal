@@ -26,7 +26,7 @@ async function main() {
   console.log("Seeding database...");
 
   // ── 1. Roles ────────────────────────────────────────────────────────────────
-  const roleCodes = ["admin", "student", "organization_leader", "organization_member", "club"];
+  const roleCodes = ["admin", "student", "organization_leader", "organization_member"];
   const roles = {};
 
   for (const code of roleCodes) {
@@ -227,6 +227,85 @@ async function main() {
     });
   }
   console.log(`  Permissions: ${permissions.length} created and assigned to admin`);
+
+  // ── 8. System Config — Student allowed email domains ─────────────────────────
+  const existingDomainConfig = await prisma.systemConfig.findFirst({
+    where: { key: "student.allowed_email_domains", organizationId: null, isDeleted: false },
+  });
+  if (!existingDomainConfig) {
+    await prisma.systemConfig.create({
+      data: {
+        key: "student.allowed_email_domains",
+        value: {
+          domains: [
+            "edu.vn",
+            "ac.vn",
+            "hust.edu.vn",
+            "uet.vnu.edu.vn",
+            "hus.edu.vn",
+            "neu.edu.vn",
+            "vnu.edu.vn",
+            "ptit.edu.vn",
+            "huce.edu.vn",
+            "uit.edu.vn",
+            "hcmut.edu.vn",
+          ],
+        },
+        dataType: "json",
+        category: "student",
+        label: "Allowed Student Email Domains",
+        description: "Danh sách các đuôi email được coi là email sinh viên. Hỗ trợ suffix matching (vd: edu.vn khớp với @hust.edu.vn).",
+        organizationId: null,
+        createdBy: null,
+      },
+    });
+  }
+  console.log("  SystemConfig: student.allowed_email_domains seeded");
+
+  const existingBannerConfig = await prisma.systemConfig.findFirst({
+    where: { key: "homepage.banner_slides", organizationId: null, isDeleted: false },
+  });
+  if (!existingBannerConfig) {
+    await prisma.systemConfig.create({
+      data: {
+        key: "homepage.banner_slides",
+        value: {
+          slides: [
+            { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 1" },
+            { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 2" },
+            { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 3" },
+          ],
+        },
+        dataType: "json",
+        category: "homepage",
+        label: "Banner Slider",
+        description: "Danh sách ảnh banner hiển thị trên trang chủ. Mỗi slide có imageUrl, linkUrl (tuỳ chọn) và alt text.",
+        organizationId: null,
+        createdBy: null,
+      },
+    });
+  }
+  console.log("  SystemConfig: homepage.banner_slides seeded");
+
+  // ── 9. System Config — Registration auto-approve ────────────────────────────
+  const existingAutoApproveConfig = await prisma.systemConfig.findFirst({
+    where: { key: "registration.auto_approve", organizationId: null, isDeleted: false },
+  });
+  if (!existingAutoApproveConfig) {
+    await prisma.systemConfig.create({
+      data: {
+        key:         "registration.auto_approve",
+        value:        { enabled: false },
+        dataType:     "json",
+        category:     "registration",
+        label:        "Auto Approve Registration",
+        description:  "Tự động duyệt đăng ký hoạt động cho sinh viên mà không cần xét duyệt thủ công.",
+        organizationId: null,
+        createdBy:    null,
+      },
+    });
+  }
+  console.log("  SystemConfig: registration.auto_approve seeded");
 
   console.log("\nSeed complete.");
   console.log("\nTest accounts:");

@@ -1,6 +1,8 @@
 import { envConfig } from "@/configs/env.config";
 import { http } from "@/configs/http.comfig";
 
+const USERS_BASE = `${envConfig.NEXT_PUBLIC_API_URL}/users`;
+
 const BASE = `${envConfig.NEXT_PUBLIC_API_URL}/organizations`;
 const APPS_BASE = `${envConfig.NEXT_PUBLIC_API_URL}/club-applications`;
 
@@ -87,15 +89,18 @@ export async function getOrganizations({
   page = 1,
   limit = 10,
   type,
+  isRecruiting,
   token,
 }: {
   page?: number;
   limit?: number;
   type?: string;
+  isRecruiting?: string;
   token?: string;
 } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (type) params.set("organizationType", type);
+  if (isRecruiting) params.set("isRecruiting", isRecruiting);
   return http.get<OrganizationsResponse>(`${BASE}?${params}`, token);
 }
 
@@ -115,6 +120,10 @@ export async function getOrganizationMembers(
 
 export async function removeMember(orgId: number | string, userId: number | string) {
   return http.delete<{ success: boolean; data: { message: string } }>(`${BASE}/${orgId}/members/${userId}`, undefined);
+}
+
+export async function addMember(orgId: number | string, userId: number, role: string = "member") {
+  return http.post<{ success: boolean; data: OrganizationMember }>(`${BASE}/${orgId}/members`, { userId, role });
 }
 
 export async function notifyCandidates(
@@ -196,4 +205,61 @@ export async function updateClubApplication(
   data: { result: string; interviewTime?: string | null; note?: string | null }
 ) {
   return http.put<ClubApplicationResponse>(`${APPS_BASE}/${applicationId}`, data);
+}
+
+export interface LookupUser {
+  userId: number;
+  userName: string;
+  email: string;
+  studentId: string | null;
+  avatarUrl: string | null;
+  university: string;
+  faculty: string | null;
+}
+
+export async function lookupUserByEmail(email: string) {
+  return http.get<{ success: boolean; data: LookupUser | null }>(`${USERS_BASE}/lookup?email=${encodeURIComponent(email)}`);
+}
+
+// ─── Organization Groups ─────────────────────────────────────────────────────
+
+export interface OrgGroup {
+  groupId: number;
+  organizationId: number;
+  groupName: string;
+  description: string | null;
+  createdAt: string;
+  _count?: { members: number };
+  members?: OrganizationMember[];
+}
+
+export interface MembersWithGroupsResponse {
+  grouped: OrgGroup[];
+  ungrouped: OrganizationMember[];
+}
+
+export async function getAllMembersWithGroups(orgId: number | string) {
+  return http.get<{ success: boolean; data: MembersWithGroupsResponse }>(`${BASE}/${orgId}/members/all`);
+}
+
+export async function getGroups(orgId: number | string) {
+  return http.get<{ success: boolean; data: OrgGroup[] }>(`${BASE}/${orgId}/groups`);
+}
+
+export async function createGroup(orgId: number | string, data: { groupName: string; description?: string }) {
+  return http.post<{ success: boolean; data: OrgGroup }>(`${BASE}/${orgId}/groups`, data);
+}
+
+export async function pushToGroup(
+  orgId: number | string,
+  data: { memberIds: number[]; groupId?: number; newGroupName?: string }
+) {
+  return http.post<{ success: boolean; data: { groupId: number; groupName: string; assignedCount: number } }>(
+    `${BASE}/${orgId}/push-to-group`,
+    data
+  );
+}
+
+export async function deleteGroup(orgId: number | string, groupId: number | string) {
+  return http.delete<{ success: boolean }>(`${BASE}/${orgId}/groups/${groupId}`, undefined);
 }

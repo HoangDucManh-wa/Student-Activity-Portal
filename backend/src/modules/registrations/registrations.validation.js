@@ -38,6 +38,26 @@ const checkinSchema = z.object({
   activityCheckinId: z.coerce.number().int().positive(),
 });
 
+const createRegistrationWithFormSchema = z.object({
+  activityId: z.coerce.number().int().positive(),
+  registrationType: z.enum(["individual", "group"]).default("individual"),
+  teamName: z.string().max(255).optional().nullable(),
+  isLookingForTeam: z.boolean().optional().nullable(),
+  teamMembers: z.array(z.object({
+    userId: z.coerce.number().int().positive(),
+    role: z.enum(["leader", "member"]).default("member"),
+  })).optional(),
+  formResponse: z.object({
+    formId: z.coerce.number().int().positive(),
+    answers: z.array(z.object({
+      questionId: z.coerce.number().int().positive(),
+      textValue: z.string().optional().nullable(),
+      fileUrl: z.string().optional().nullable(),
+      optionIds: z.array(z.coerce.number().int().positive()).optional(),
+    })),
+  }).optional(),
+});
+
 module.exports = {
   createRegistrationSchema,
   getRegistrationsQuerySchema,
@@ -45,4 +65,5 @@ module.exports = {
   updateRegistrationStatusSchema,
   bulkUpdateStatusSchema,
   checkinSchema,
+  createRegistrationWithFormSchema,
 };

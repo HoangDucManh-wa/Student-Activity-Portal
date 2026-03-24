@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { getActivityById } from "@/services/activity.service"
 import {
   createRegistration,
+  createRegistrationWithForm,
   getMyRegistrationByActivity,
   cancelRegistration,
   lookupUserByEmail,
@@ -167,6 +168,9 @@ export default function DetailEventPage() {
   const [teamMemberUsers, setTeamMemberUsers] = useState<Record<number, UserPreview | null | "loading" | "duplicate" | undefined>>({})
   const [teamNameError, setTeamNameError] = useState("")
 
+  // State to hold registration payload before form submission
+  const [pendingRegPayload, setPendingRegPayload] = useState<any>(null)
+
   useEffect(() => { setMounted(true) }, [])
 
   const hasToken = mounted && document.cookie.includes("access_token=")
@@ -255,6 +259,10 @@ export default function DetailEventPage() {
 
     if (buttonState === "register" || buttonState === "register_waitlist") {
       if (activity.registrationForm?.formId) {
+        setPendingRegPayload({
+          activityId: activity.activityId,
+          registrationType: "individual",
+        })
         setFormAnswers({})
         setShowFormDialog(true)
         return
@@ -356,28 +364,30 @@ export default function DetailEventPage() {
       return
     }
 
+    const payload = {
+      activityId: activity.activityId,
+      registrationType: "group",
+      teamName: teamName.trim(),
+      teamMembers: memberIds.map(uid => ({ userId: uid, role: "member" })),
+    }
+
+    // Step 2: If activity has a registration form, open it next
+    if (activity.registrationForm?.formId) {
+      setPendingRegPayload(payload)
+      setShowRegModeDialog(false)
+      setFormAnswers({})
+      setShowFormDialog(true)
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await createRegistration({
-        activityId: activity.activityId,
-        registrationType: "group",
-        teamName: teamName.trim(),
-        teamMembers: memberIds.map(uid => ({ userId: uid, role: "member" })),
-      }) as any
+      const res = await createRegistration(payload) as any
       if (res?.success) {
+        toast.success("Đăng ký nhóm thành công!")
         queryClient.invalidateQueries({ queryKey: ["my-registration", id] })
         queryClient.invalidateQueries({ queryKey: ["activity", id] })
-
-        // Step 2: If activity has a registration form, open it next
-        if (activity.registrationForm?.formId) {
-          toast.success("Đăng ký nhóm thành công! Vui lòng điền biểu mẫu của tổ chức.")
-          setShowRegModeDialog(false)
-          setFormAnswers({})
-          setShowFormDialog(true)
-        } else {
-          toast.success("Đăng ký nhóm thành công!")
-          setShowRegModeDialog(false)
-        }
+        setShowRegModeDialog(false)
       } else {
         toast.error(res?.message ?? "Đăng ký thất bại")
       }
@@ -390,17 +400,21 @@ export default function DetailEventPage() {
 
   const proceedIndividual = () => {
     setShowRegModeDialog(false)
+    
+    const payload = {
+      activityId: activity!.activityId,
+      registrationType: "individual",
+      isLookingForTeam: true,
+    }
+
     if (activity?.registrationForm?.formId) {
+      setPendingRegPayload(payload)
       setFormAnswers({})
       setShowFormDialog(true)
     } else {
       // Direct register as individual looking for team
       setLoading(true)
-      createRegistration({
-        activityId: activity!.activityId,
-        registrationType: "individual",
-        isLookingForTeam: true,
-      } as any)
+      createRegistration(payload as any)
         .then((res: any) => {
           if (res?.success) {
             toast.success(buttonState === "register_waitlist" ? "Đã vào hàng chờ!" : "Đăng ký thành công!")
@@ -463,31 +477,61 @@ export default function DetailEventPage() {
           selectedOptionIds: ans.selectedOptionIds ?? [],
         }
       })
-      const submitRes = await submitForm(registrationForm.formId, { answers }) as any
-      if (!submitRes?.success) {
-        toast.error(submitRes?.message ?? "Gửi biểu mẫu thất bại")
-        return
+      const formPayload = {
+        formId: registrationForm.formId,
+        answers,
       }
 
-      // If already registered (e.g. from team step 1), just close
-      const alreadyRegistered = !!registration
-      if (alreadyRegistered) {
-        toast.success("Nộp biểu mẫu thành công!")
+      // We combine the pendingRegPayload and formResponse into a single API call
+      // using createRegistrationWithForm (atomic transaction)
+      const submitData = {
+        ...(pendingRegPayload || {
+          activityId: activity.activityId,
+          registrationType: "individual",
+        }),
+        formResponse: formPayload,
+      }
+
+      const regRes = await createRegistrationWithForm(submitData) as any
+      const routeMissingText = String(regRes?.error ?? regRes?.message ?? "").toLowerCase()
+      const isWithFormRouteMissing =
+        !regRes?.success &&
+        routeMissingText.includes("with-form") &&
+        (routeMissingText.includes("không tồn tại") || routeMissingText.includes("not found"))
+
+      if (regRes?.success) {
+        toast.success(buttonState === "register_waitlist" ? "Đã vào hàng chờ!" : "Đăng ký thành công!")
+        queryClient.invalidateQueries({ queryKey: ["my-registration", id] })
+        queryClient.invalidateQueries({ queryKey: ["activity", id] })
+        setShowFormDialog(false)
+        refetchMyResponse()
+      } else if (isWithFormRouteMissing) {
+        // Fallback for older backend versions that do not have /registrations/with-form.
+        const legacyRegRes = await createRegistration(
+          (pendingRegPayload || {
+            activityId: activity.activityId,
+            registrationType: "individual",
+          }) as any
+        ) as any
+
+        if (!legacyRegRes?.success) {
+          toast.error(legacyRegRes?.message ?? "Đăng ký thất bại")
+          return
+        }
+
+        const legacyFormRes = await submitForm(registrationForm.formId, { answers }) as any
+        if (!legacyFormRes?.success) {
+          toast.error(legacyFormRes?.message ?? "Đăng ký thành công nhưng gửi biểu mẫu thất bại")
+          return
+        }
+
+        toast.success(buttonState === "register_waitlist" ? "Đã vào hàng chờ!" : "Đăng ký thành công!")
         queryClient.invalidateQueries({ queryKey: ["my-registration", id] })
         queryClient.invalidateQueries({ queryKey: ["activity", id] })
         setShowFormDialog(false)
         refetchMyResponse()
       } else {
-        const regRes = await createRegistration({ activityId: activity.activityId }) as any
-        if (regRes?.success) {
-          toast.success(buttonState === "register_waitlist" ? "Đã vào hàng chờ!" : "Đăng ký thành công!")
-          queryClient.invalidateQueries({ queryKey: ["my-registration", id] })
-          queryClient.invalidateQueries({ queryKey: ["activity", id] })
-          setShowFormDialog(false)
-          refetchMyResponse()
-        } else {
-          toast.error(regRes?.message ?? "Đăng ký thất bại")
-        }
+        toast.error(regRes?.message ?? "Đăng ký thất bại")
       }
     } catch {
       toast.error("Có lỗi xảy ra, vui lòng thử lại")
@@ -539,6 +583,12 @@ export default function DetailEventPage() {
             <span className="font-medium">Loại:</span>{" "}
             {TYPE_MAP[activity.activityType] ?? activity.activityType}
           </div>
+          {activity.activityCategory && (
+            <div className="text-[14px]">
+              <span className="font-medium">Phân loại:</span>{" "}
+              {activity.activityCategory.categoryName}
+            </div>
+          )}
           <div className="text-[14px]">
             <span className="font-medium">Bắt đầu:</span> {formatDate(activity.startTime)}
           </div>

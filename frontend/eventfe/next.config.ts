@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/organization/event-registration",
+        destination: "/organization/event",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

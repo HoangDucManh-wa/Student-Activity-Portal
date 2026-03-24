@@ -216,3 +216,60 @@ module.exports = {
   notifyCandidates,
   updateRecruitmentSettings,
 };
+
+const getAllMembersWithGroups = async (req, res, next) => {
+  try {
+    const result = await organizationsService.getAllMembersWithGroups(req.params.id);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getGroups = async (req, res, next) => {
+  try {
+    const result = await organizationsService.getGroups(req.params.id);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createGroup = async (req, res, next) => {
+  try {
+    const result = await organizationsService.createGroup(
+      req.params.id, req.body, req.user.userId, req.user.roles
+    );
+    return success(res, result, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const pushToGroup = async (req, res, next) => {
+  try {
+    const result = await organizationsService.pushToGroup(
+      req.params.id, req.body, req.user.userId, req.user.roles
+    );
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteGroupHandler = async (req, res, next) => {
+  try {
+    const result = await organizationsService.deleteGroup(
+      req.params.id, req.params.groupId, req.user.userId, req.user.roles
+    );
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports.getAllMembersWithGroups = getAllMembersWithGroups;
+module.exports.getGroups = getGroups;
+module.exports.createGroup = createGroup;
+module.exports.pushToGroup = pushToGroup;
+module.exports.deleteGroup = deleteGroupHandler;

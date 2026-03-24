@@ -2,9 +2,8 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { useFormList, useDeleteForm } from "@/hooks/useForm.hook"
-import { changeFormStatus } from "@/services/form.service"
 import { getMyOrganization } from "@/services/organization.service"
 import { useDebounce } from "@/hooks/useDebounce"
 import { Badge } from "@/components/ui/badge"
@@ -15,8 +14,6 @@ import {
   IconEdit,
   IconTrash,
   IconFileSpreadsheet,
-  IconPlayerPlay,
-  IconPlayerStop,
   IconSearch,
   IconTag,
 } from "@tabler/icons-react"
@@ -54,7 +51,6 @@ function FormContextBadge({ form }: { form: Form }) {
 }
 
 export default function OrgFormsPage() {
-  const queryClient = useQueryClient()
   const [page, setPage] = React.useState(1)
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<FormStatus | "">("")
@@ -95,16 +91,6 @@ export default function OrgFormsPage() {
       toastSuccess("Đã xóa biểu mẫu")
     } catch {
       toastError("Xóa thất bại")
-    }
-  }
-
-  const handleChangeStatus = async (id: number, status: FormStatus) => {
-    try {
-      await changeFormStatus(id, status)
-      queryClient.invalidateQueries({ queryKey: ["forms"] })
-      toastSuccess("Cập nhật trạng thái thành công")
-    } catch {
-      toastError("Cập nhật thất bại")
     }
   }
 
@@ -194,24 +180,6 @@ export default function OrgFormsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {form.status === "draft" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleChangeStatus(form.formId, "open")}
-                      >
-                        <IconPlayerPlay className="size-4 mr-1" /> Mở
-                      </Button>
-                    )}
-                    {form.status === "open" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleChangeStatus(form.formId, "closed")}
-                      >
-                        <IconPlayerStop className="size-4 mr-1" /> Đóng
-                      </Button>
-                    )}
                     <Link href={`/organization/forms/${form.formId}/responses`}>
                       <Button variant="outline" size="sm">
                         <IconFileSpreadsheet className="size-4 mr-1" />

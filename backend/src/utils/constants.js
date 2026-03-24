@@ -47,10 +47,8 @@ const REGISTRATION_TYPE = {
 };
 
 const ORGANIZATION_TYPE = {
-  UNIVERSITY: "university",
+  ORGANIZATION: "organization",
   CLUB: "club",
-  DEPARTMENT: "department",
-  COMPANY: "company",
 };
 
 const ORG_MEMBER_ROLE = {
@@ -88,6 +86,7 @@ const REDIS_PREFIX = {
   BLACKLIST: "blacklist:",
   REFRESH: "refresh:",
   RESET_PASSWORD: "reset_pwd:",
+  RESET_ORG_PWD: "reset_org_pwd:",
   USER_SESSION: "user:session:",
   GOOGLE_OAUTH_CODE: "google_code:",
   OTP: "otp:",
@@ -105,6 +104,14 @@ const VALID_STATUS_TRANSITIONS = {
   [ACTIVITY_STATUS.DRAFT]: [ACTIVITY_STATUS.PENDING_REVIEW, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.PENDING_REVIEW]: [ACTIVITY_STATUS.PUBLISHED, ACTIVITY_STATUS.DRAFT, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.PUBLISHED]: [ACTIVITY_STATUS.RUNNING, ACTIVITY_STATUS.CANCELLED],
+  [ACTIVITY_STATUS.RUNNING]: [ACTIVITY_STATUS.FINISHED, ACTIVITY_STATUS.CANCELLED],
+  [ACTIVITY_STATUS.FINISHED]: [],
+  [ACTIVITY_STATUS.CANCELLED]: [],
+};
+
+// Competition: skip PENDING_REVIEW and PUBLISHED
+const VALID_COMPETITION_STATUS_TRANSITIONS = {
+  [ACTIVITY_STATUS.DRAFT]: [ACTIVITY_STATUS.RUNNING, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.RUNNING]: [ACTIVITY_STATUS.FINISHED, ACTIVITY_STATUS.CANCELLED],
   [ACTIVITY_STATUS.FINISHED]: [],
   [ACTIVITY_STATUS.CANCELLED]: [],
@@ -149,6 +156,8 @@ const CONFIG_KEYS = {
   REGISTRATION_ALLOW_CANCEL: "registration.allow_cancel_after_approve",
   ORG_REQUIRE_APPROVAL: "organization.require_approval_for_new",
   SYSTEM_MAINTENANCE: "system.maintenance_mode",
+  STUDENT_ALLOWED_DOMAINS: "student.allowed_email_domains",
+  HOMEPAGE_BANNER_SLIDES: "homepage.banner_slides",
 };
 
 const CONFIG_DEFAULTS = {
@@ -158,6 +167,28 @@ const CONFIG_DEFAULTS = {
   [CONFIG_KEYS.REGISTRATION_ALLOW_CANCEL]: { enabled: true },
   [CONFIG_KEYS.ORG_REQUIRE_APPROVAL]: { enabled: false },
   [CONFIG_KEYS.SYSTEM_MAINTENANCE]: { enabled: false },
+  [CONFIG_KEYS.STUDENT_ALLOWED_DOMAINS]: {
+    domains: [
+      "edu.vn",
+      "ac.vn",
+      "hust.edu.vn",
+      "uet.vnu.edu.vn",
+      "hus.edu.vn",
+      "neu.edu.vn",
+      "vnu.edu.vn",
+      "ptit.edu.vn",
+      "huce.edu.vn",
+      "uit.edu.vn",
+      "hcmut.edu.vn",
+    ],
+  },
+  [CONFIG_KEYS.HOMEPAGE_BANNER_SLIDES]: {
+    slides: [
+      { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 1" },
+      { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 2" },
+      { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 3" },
+    ],
+  },
 };
 
 module.exports = {
@@ -185,6 +216,7 @@ module.exports = {
   NOTIFICATION_QUEUE_NAME,
   REGISTRATION_QUEUE_NAME,
   VALID_STATUS_TRANSITIONS,
+  VALID_COMPETITION_STATUS_TRANSITIONS,
   CONFIG_KEYS,
   CONFIG_DEFAULTS,
 };

@@ -3,7 +3,8 @@ const controller = require("./admin.controller");
 const validate = require("../../middlewares/validate.middleware");
 const { protect } = require("../../middlewares/auth.middleware");
 const { authorize } = require("../../middlewares/role.middleware");
-const { createUserSchema, createOrganizationSchema } = require("./admin.validation");
+const { createUserSchema, createOrganizationSchema, listUsersQuerySchema, listUsersByUniversityQuerySchema } = require("./admin.validation");
+const { validateQuery } = require("../../middlewares/validate.middleware");
 
 const router = Router();
 
@@ -38,7 +39,8 @@ router.post(
 );
 
 // Danh sách, chỉnh sửa, xóa, khóa/mở khóa user
-router.get("/users", controller.listUsers);
+router.get("/users", validateQuery(listUsersQuerySchema), controller.listUsers);
+router.get("/users/by-university", validateQuery(listUsersByUniversityQuerySchema), controller.listUsersByUniversity);
 router.put("/users/:id", controller.adminUpdateUser);
 router.delete("/users/:id", controller.adminDeleteUser);
 router.patch("/users/:id/status", controller.adminToggleUserStatus);

@@ -121,6 +121,15 @@ const matchTeam = async (req, res, next) => {
   }
 };
 
+const createRegistrationWithForm = async (req, res, next) => {
+  try {
+    const result = await registrationsService.createRegistrationWithForm(req.body, req.user.userId);
+    return success(res, result, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createRegistration,
   cancelRegistration,
@@ -134,4 +143,5 @@ module.exports = {
   checkout,
   getActivityParticipantStats,
   matchTeam,
+  createRegistrationWithForm,
 };

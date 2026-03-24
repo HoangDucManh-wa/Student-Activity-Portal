@@ -2,7 +2,10 @@ const bcrypt = require("bcryptjs");
 
 const prisma = require("../../config/prisma");
 const AppError = require("../../utils/app-error");
-const { USER_STATUS } = require("../../utils/constants");
+const { USER_STATUS, CONFIG_KEYS } = require("../../utils/constants");
+const { resolveFields, resolveArrayFields } = require("../../utils/s3-helpers");
+const { getConfig } = require("../system-config/system-config.service");
+const { isStudentEmailSync } = require("../../utils/student-email");
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -191,8 +194,7 @@ const createOrganization = async (
 
   const hashedPassword = await bcrypt.hash(leaderPassword, 12);
 
-  // Determine role based on org type
-  const roleCode = organizationType === "club" ? "club" : "organization_leader";
+  const roleCode = "organization_leader";
 
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create the organization
@@ -298,21 +300,48 @@ const importOrgsFromCSV = async (csvText, createdBy) => {
 // ─── List users (admin) ────────────────────────────────────────────────────────
 // type: "student" | "club" | "third_party" — map tới role/org type
 
-const listUsers = async ({ page = 1, limit = 20, search, status, type } = {}) => {
+const listUsers = async ({ page = 1, limit = 20, search, status, type, emailType, university } = {}) => {
   const pageNum = Number(page);
   const limitNum = Number(limit);
 
-  const where = {
-    isDeleted: false,
-    ...(status && { status }),
-    ...(search && {
-      OR: [
-        { userName: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-        { studentId: { contains: search, mode: "insensitive" } },
-      ],
-    }),
-  };
+  // Fetch allowed student email domains once (cached via Redis)
+  const domainConfig = await getConfig(CONFIG_KEYS.STUDENT_ALLOWED_DOMAINS);
+  const allowedDomains = domainConfig?.domains ?? [];
+
+  // Build domain filter conditions for Prisma
+  // Each domain `d` matches: user@d (exact) OR user@sub.d (subdomain)
+  const buildDomainConditions = (domains) =>
+    domains.flatMap((d) => [
+      { email: { endsWith: `@${d}` } },
+      { email: { endsWith: `.${d}` } },
+    ]);
+
+  let emailFilter = null;
+  if (emailType && allowedDomains.length > 0) {
+    const domainConditions = buildDomainConditions(allowedDomains);
+    if (emailType === "student") {
+      emailFilter = { OR: domainConditions };
+    } else if (emailType === "external") {
+      emailFilter = { NOT: { OR: domainConditions } };
+    }
+  }
+
+  // Use AND array to safely combine OR-based filters without key collision
+  const andConditions = [
+    { isDeleted: false },
+    ...(status ? [{ status }] : []),
+    ...(emailFilter ? [emailFilter] : []),
+    ...(university ? [{ university: { contains: university, mode: "insensitive" } }] : []),
+    ...(search
+      ? [{ OR: [
+          { userName: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { studentId: { contains: search, mode: "insensitive" } },
+        ] }]
+      : []),
+  ];
+
+  const where = { AND: andConditions };
 
   const [data, total] = await Promise.all([
     prisma.user.findMany({
@@ -343,7 +372,99 @@ const listUsers = async ({ page = 1, limit = 20, search, status, type } = {}) =>
     data: data.map(({ userRoles, ...u }) => ({
       ...u,
       roles: userRoles.map((ur) => ur.role?.code).filter(Boolean),
+      isStudentEmail: isStudentEmailSync(u.email, allowedDomains),
     })),
+    meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+  };
+};
+
+// ─── List users grouped by university ────────────────────────────────────────
+
+const listUsersByUniversity = async ({ page = 1, limit = 20, search, status, university } = {}) => {
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+
+  const domainConfig = await getConfig(CONFIG_KEYS.STUDENT_ALLOWED_DOMAINS);
+  const allowedDomains = domainConfig?.domains ?? [];
+
+  // Base conditions shared by both queries
+  const baseConditions = [
+    { isDeleted: false },
+    ...(status ? [{ status }] : []),
+    ...(university ? [{ university: { contains: university, mode: "insensitive" } }] : []),
+    ...(search
+      ? [{ OR: [
+          { userName: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { studentId: { contains: search, mode: "insensitive" } },
+        ] }]
+      : []),
+  ];
+
+  const where = { AND: baseConditions };
+
+  // Unique universities with counts (case-insensitive via $queryRaw)
+  const [universityAgg, totalCountResult] = await Promise.all([
+    prisma.$queryRaw`
+      SELECT TRIM(UPPER("university")) AS normalized_university,
+             "university"              AS original_name,
+             COUNT(*)::int             AS total
+      FROM users
+      WHERE "isDeleted" = false
+        AND "university" IS NOT NULL
+        ${university ? prisma.$queryRaw`AND LOWER("university") LIKE LOWER(${`%${university}%`})` : prisma.$queryRaw``}
+      GROUP BY TRIM(UPPER("university")), "university"
+      ORDER BY total DESC
+      OFFSET ${(pageNum - 1) * limitNum}
+      LIMIT ${limitNum}
+    `,
+    prisma.$queryRaw`
+      SELECT COUNT(DISTINCT TRIM(UPPER("university")))::int AS total
+      FROM users
+      WHERE "isDeleted" = false
+        AND "university" IS NOT NULL
+        ${university ? prisma.$queryRaw`AND LOWER("university") LIKE LOWER(${`%${university}%`})` : prisma.$queryRaw``}
+    `,
+  ]);
+
+  const total = Number(totalCountResult[0]?.total ?? 0);
+
+  const universities = universityAgg.map((u) => ({
+    university: u.original_name,
+    totalStudents: Number(u.total),
+  }));
+
+  // Fetch student list per university (top 5 preview each)
+  const previewLimit = 5;
+  const universitiesWithPreview = await Promise.all(
+    universities.map(async (u) => {
+      const students = await prisma.user.findMany({
+        where: { ...where, university: u.university },
+        select: {
+          userId: true, userName: true, email: true, studentId: true,
+          university: true, phoneNumber: true, status: true, avatarUrl: true,
+          userRoles: {
+            where: { isDeleted: false },
+            select: { role: { select: { code: true } } },
+          },
+        },
+        take: previewLimit,
+        orderBy: { createdAt: "desc" },
+      });
+
+      return {
+        ...u,
+        students: students.map(({ userRoles, ...s }) => ({
+          ...s,
+          roles: userRoles.map((ur) => ur.role?.code).filter(Boolean),
+          isStudentEmail: isStudentEmailSync(s.email, allowedDomains),
+        })),
+      };
+    })
+  );
+
+  return {
+    data: universitiesWithPreview,
     meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
   };
 };
@@ -426,6 +547,8 @@ const listOrganizations = async ({ page = 1, limit = 20, search, organizationTyp
     prisma.organization.count({ where }),
   ]);
 
+  await resolveArrayFields(data, ["logoUrl"]);
+
   return {
     data,
     meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
@@ -445,7 +568,7 @@ const adminUpdateOrganization = async (orgId, data, updatedBy) => {
     payload.password = await bcrypt.hash(password, 12);
   }
 
-  return prisma.organization.update({
+  const updatedOrg = await prisma.organization.update({
     where: { organizationId: Number(orgId) },
     data: payload,
     select: {
@@ -453,6 +576,9 @@ const adminUpdateOrganization = async (orgId, data, updatedBy) => {
       email: true, status: true, logoUrl: true, description: true,
     },
   });
+
+  await resolveFields(updatedOrg, ["logoUrl"]);
+  return updatedOrg;
 };
 
 // ─── Delete organization (admin) ──────────────────────────────────────────────
@@ -480,7 +606,7 @@ const adminToggleOrgStatus = async (orgId, status, updatedBy) => {
   });
 };
 
-// ─── Promote user to admin, organization_leader, or club ──────────────────────
+// ─── Promote user to admin or organization_leader ─────────────────────────────
 
 const promoteUser = async (userId, { role, organization } = {}, promotedBy) => {
   const user = await prisma.user.findFirst({ where: { userId: Number(userId), isDeleted: false } });
@@ -491,12 +617,11 @@ const promoteUser = async (userId, { role, organization } = {}, promotedBy) => {
     return { userId: Number(userId), role: "admin" };
   }
 
-  if (role === "organization_leader" || role === "club") {
+  if (role === "organization_leader") {
     if (!organization?.organizationName || !organization?.organizationType) {
       throw new AppError("VALIDATION_ERROR", "Tên và loại tổ chức/CLB là bắt buộc");
     }
 
-    // Create org directly (without auto-creating user, since user already exists)
     const org = await prisma.organization.create({
       data: {
         organizationName: organization.organizationName,
@@ -514,8 +639,7 @@ const promoteUser = async (userId, { role, organization } = {}, promotedBy) => {
       },
     });
 
-    const roleCode = role === "club" ? "club" : "organization_leader";
-    await assignRole(Number(userId), roleCode);
+    await assignRole(Number(userId), "organization_leader");
 
     await prisma.organizationMember.upsert({
       where: { userId_organizationId: { userId: Number(userId), organizationId: org.organizationId } },
@@ -529,10 +653,10 @@ const promoteUser = async (userId, { role, organization } = {}, promotedBy) => {
       },
     });
 
-    return { userId: Number(userId), role: roleCode, organization: org };
+    return { userId: Number(userId), role: "organization_leader", organization: org };
   }
 
-  throw new AppError("VALIDATION_ERROR", "Role phải là 'admin', 'organization_leader' hoặc 'club'");
+  throw new AppError("VALIDATION_ERROR", "Role phải là 'admin' hoặc 'organization_leader'");
 };
 
 module.exports = {
@@ -544,6 +668,7 @@ module.exports = {
   createOrganization,
   importOrgsFromCSV,
   listUsers,
+  listUsersByUniversity,
   adminUpdateUser,
   adminDeleteUser,
   adminToggleUserStatus,

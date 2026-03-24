@@ -37,10 +37,11 @@ export default function ContactPage() {
             <div className="flex gap-[10px]">
               <Image
                 src="/website.png"
-                alt='phone'
+                alt='website'
                 width={30}
                 height={20}
               />
+              <a href="https://hvnh.edu.vn" target="_blank" rel="noopener noreferrer">hvnh.edu.vn</a>
             </div>
             <div className="flex gap-[10px]">
               <Image

@@ -49,85 +49,90 @@ export const clubSchema = z.object({
 
 type Club = z.infer<typeof clubSchema>
 
-const columns: ColumnDef<Club>[] = [
-  {
-    id: "drag",
-    header: () => null,
-    cell: ({ row }) => <DragHandle id={row.original.id} />,
-  },
-  {
-    id: "select",
-    header: ({ table }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-        />
-      </div>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center">
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "logoUrl",
-    header: "Avatar",
-    cell: ({ row }) => (
-      <div className="w-[50px] h-[50px] rounded-full overflow-hidden">
-        <img
-          src={row.original.logoUrl || "/hinh-nen-may-tinh-anime.jpg"}
-          alt="avatar"
-          className="w-full h-full object-cover"
-        />
-      </div>
-    ),
-    enableHiding: false,
-  },
-  {
-    accessorKey: "organizationName",
-    header: "Tên tổ chức",
-    cell: ({ row }) => <span>{row.original.organizationName}</span>,
-  },
-  {
-    accessorKey: "organizationType",
-    header: "Loại",
-    cell: ({ row }) => <span>{row.original.organizationType}</span>,
-  },
-  {
-    accessorKey: "email",
-    header: "Email",
-    cell: ({ row }) => <span>{row.original.email ?? "-"}</span>,
-  },
-  {
-    id: "actions",
-    cell: () => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="flex size-8 text-muted-foreground data-[state=open]:bg-muted" size="icon">
-            <IconDotsVertical />
-            <span className="sr-only">Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
-  },
-]
+function createOrgColumns(
+  onEdit: (org: Club) => void,
+  onDelete: (org: Club) => void
+): ColumnDef<Club>[] {
+  return [
+    {
+      id: "drag",
+      header: () => null,
+      cell: ({ row }) => <DragHandle id={row.original.id} />,
+    },
+    {
+      id: "select",
+      header: ({ table }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "logoUrl",
+      header: "Avatar",
+      cell: ({ row }) => (
+        <div className="w-[50px] h-[50px] rounded-full overflow-hidden">
+          <img
+            src={row.original.logoUrl || "/hinh-nen-may-tinh-anime.jpg"}
+            alt="avatar"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ),
+      enableHiding: false,
+    },
+    {
+      accessorKey: "organizationName",
+      header: "Tên tổ chức",
+      cell: ({ row }) => <span>{row.original.organizationName}</span>,
+    },
+    {
+      accessorKey: "organizationType",
+      header: "Loại",
+      cell: ({ row }) => <span>{row.original.organizationType}</span>,
+    },
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => <span>{row.original.email ?? "-"}</span>,
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="flex size-8 text-muted-foreground data-[state=open]:bg-muted" size="icon">
+              <IconDotsVertical />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem onClick={() => onEdit(row.original)}>Chỉnh sửa</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>Xóa</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ]
+}
 
-const ORG_TYPES = ["university", "club", "department", "company"] as const
+const ORG_TYPES = ["club", "organization"] as const
 
 function CreateOrgDialog({ onCreated }: { onCreated?: () => void }) {
   const [open, setOpen] = React.useState(false)
@@ -212,10 +217,9 @@ function CreateOrgDialog({ onCreated }: { onCreated?: () => void }) {
               <SelectTrigger id="org-type">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {ORG_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
+              <SelectContent position="popper">
+                <SelectItem value="club">Câu lạc bộ</SelectItem>
+                <SelectItem value="organization">Tổ chức / Đơn vị</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -300,6 +304,99 @@ function CreateOrgDialog({ onCreated }: { onCreated?: () => void }) {
   )
 }
 
+function EditOrgDialog({
+  org,
+  onClose,
+  onUpdated,
+}: {
+  org: Club
+  onClose: () => void
+  onUpdated?: () => void
+}) {
+  const [loading, setLoading] = React.useState(false)
+  const [form, setForm] = React.useState({
+    organizationName: org.organizationName,
+    organizationType: org.organizationType,
+    email: org.email ?? "",
+  })
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const body: Record<string, string> = {
+        organizationName: form.organizationName,
+        organizationType: form.organizationType,
+      }
+      if (form.email) body.email = form.email
+
+      const res = await http.put<{ success: boolean }>(
+        `${envConfig.NEXT_PUBLIC_API_URL}/admin/organizations/${org.organizationId}`,
+        body
+      ) as any
+      if (!res?.success) throw new Error(res?.message || "Cập nhật thất bại")
+      toast.success("Cập nhật tổ chức thành công")
+      onUpdated?.()
+      onClose()
+    } catch (err: any) {
+      toast.error(err?.message || "Cập nhật thất bại")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Chỉnh sửa tổ chức</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="edit-org-name">Tên tổ chức / CLB *</Label>
+            <Input
+              id="edit-org-name"
+              value={form.organizationName}
+              onChange={(e) => setForm((f) => ({ ...f, organizationName: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="edit-org-type">Loại *</Label>
+            <Select
+              value={form.organizationType}
+              onValueChange={(v) => setForm((f) => ({ ...f, organizationType: v }))}
+            >
+              <SelectTrigger id="edit-org-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="club">Câu lạc bộ</SelectItem>
+                <SelectItem value="organization">Tổ chức / Đơn vị</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="edit-org-email">Email tổ chức</Label>
+            <Input
+              id="edit-org-email"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Đang lưu..." : "Lưu"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 const ORG_REQUIRED_HEADERS = ["organizationName", "organizationType"]
 
 function validateCSVHeaders(csvText: string, required: string[]): string | null {
@@ -335,10 +432,37 @@ export function ClubTable({ data: initialData, onRefresh }: { data: Club[]; onRe
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
+  const [editingOrg, setEditingOrg] = React.useState<Club | null>(null)
+  const [deletingOrg, setDeletingOrg] = React.useState<Club | null>(null)
+  const [deleteLoading, setDeleteLoading] = React.useState(false)
 
   React.useEffect(() => {
     setData(initialData)
   }, [initialData])
+
+  async function handleDeleteConfirm() {
+    if (!deletingOrg) return
+    setDeleteLoading(true)
+    try {
+      const res = await http.delete<{ success: boolean }>(
+        `${envConfig.NEXT_PUBLIC_API_URL}/admin/organizations/${deletingOrg.organizationId}`,
+        {}
+      ) as any
+      if (!res?.success) throw new Error(res?.message || "Xóa thất bại")
+      toast.success("Đã xóa tổ chức")
+      setDeletingOrg(null)
+      onRefresh?.()
+    } catch (err: any) {
+      toast.error(err?.message || "Xóa thất bại")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
+  const columns = React.useMemo(
+    () => createOrgColumns((org) => setEditingOrg(org), (org) => setDeletingOrg(org)),
+    []
+  )
 
   const sortableId = React.useId()
   const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor), useSensor(KeyboardSensor))
@@ -379,6 +503,7 @@ export function ClubTable({ data: initialData, onRefresh }: { data: Club[]; onRe
   }
 
   return (
+    <>
     <div className="flex flex-col gap-4">
       <div className="flex justify-between px-4 lg:px-6">
         <DropdownMenu>
@@ -489,5 +614,33 @@ export function ClubTable({ data: initialData, onRefresh }: { data: Club[]; onRe
         </div>
       </div>
     </div>
+
+      {editingOrg && (
+        <EditOrgDialog
+          org={editingOrg}
+          onClose={() => setEditingOrg(null)}
+          onUpdated={() => { setEditingOrg(null); onRefresh?.() }}
+        />
+      )}
+
+      {deletingOrg && (
+        <Dialog open onOpenChange={(v) => !v && setDeletingOrg(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Xác nhận xóa</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Bạn có chắc muốn xóa tổ chức <strong>{deletingOrg.organizationName}</strong>? Hành động này không thể hoàn tác.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeletingOrg(null)}>Hủy</Button>
+              <Button variant="destructive" disabled={deleteLoading} onClick={handleDeleteConfirm}>
+                {deleteLoading ? "Đang xóa..." : "Xóa"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }

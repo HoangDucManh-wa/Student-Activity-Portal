@@ -36,6 +36,7 @@ module.exports = {
   // ─── Organization ─────────────────────────────────────
   ORGANIZATION_NOT_FOUND:     { statusCode: 404, message: "Tổ chức không tồn tại" },
   ORGANIZATION_MEMBER_EXISTS: { statusCode: 409, message: "Thành viên đã tồn tại trong tổ chức" },
+  CANNOT_REMOVE_SELF:          { statusCode: 400, message: "Không thể xóa chính mình khỏi tổ chức" },
   ORGANIZATION_NOT_MEMBER:      { statusCode: 403, message: "Bạn không phải thành viên của tổ chức này" },
   ORGANIZATION_NOT_RECRUITING:  { statusCode: 400, message: "Tổ chức hiện không mở đơn tuyển thành viên" },
 

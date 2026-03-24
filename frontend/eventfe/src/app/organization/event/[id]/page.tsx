@@ -8,6 +8,7 @@ import {
   getActivityById,
   updateActivity,
   updateActivityStatus,
+  deleteActivity,
   openCheckinSession,
   closeCheckinSession,
   openCheckoutSession,
@@ -57,6 +58,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter()
   const queryClient = useQueryClient()
 
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [showFormPanel, setShowFormPanel] = useState(false)
   const [selectedFormId, setSelectedFormId] = useState<number | null | "">("")
   const [showDeadlineDialog, setShowDeadlineDialog] = useState(false)
@@ -72,6 +74,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
   const [showMatchDialog, setShowMatchDialog] = useState(false)
   const [matchTeamName, setMatchTeamName] = useState("")
   const [matchLeaderId, setMatchLeaderId] = useState<number | null>(null)
+  const [matchMemberSearch, setMatchMemberSearch] = useState("")
 
   // Ticker for countdown display (updates every 10s)
   useEffect(() => {
@@ -126,7 +129,43 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
   })
   const individualRegistrations: RegistrationDetailExtended[] = (indivRegData as any)?.data?.data ?? []
 
+  const getVisibleTeamMembers = useCallback((reg: RegistrationDetailExtended) => {
+    const members = reg.teamMembers ?? []
+    const seen = new Set<number>()
+    return members.filter((tm) => {
+      if (!tm?.userId) return false
+      if (tm.userId === reg.userId) return false
+      if (seen.has(tm.userId)) return false
+      seen.add(tm.userId)
+      return true
+    })
+  }, [])
+
+  const getTeamSize = useCallback((reg: RegistrationDetailExtended) => {
+    return 1 + getVisibleTeamMembers(reg).length
+  }, [getVisibleTeamMembers])
+
+  const selectedCandidates = individualRegistrations.filter((r) => selectedIndividuals.has(r.registrationId))
+  const normalizedMatchSearch = matchMemberSearch.trim().toLowerCase()
+  const filteredCandidates = !normalizedMatchSearch
+    ? selectedCandidates
+    : selectedCandidates.filter((r) => {
+        const name = (r.user?.userName ?? "").toLowerCase()
+        const email = (r.user?.email ?? "").toLowerCase()
+        return name.includes(normalizedMatchSearch) || email.includes(normalizedMatchSearch)
+      })
+
   // ── Mutations ───────────────────────────────────────────────────────────────
+
+  const deleteMut = useMutation({
+    mutationFn: () => deleteActivity(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-org-activities"] })
+      toast.success("Đã xóa hoạt động")
+      router.push("/organization/event")
+    },
+    onError: () => toast.error("Xóa thất bại"),
+  })
 
   const submitMut = useMutation({
     mutationFn: () => updateActivityStatus(id, "pending_review"),
@@ -371,7 +410,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
           </p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          {activity.activityStatus === "draft" && (
+          {activity.activityStatus === "draft" && !isCompetition && (
             <button
               onClick={() => submitMut.mutate()}
               disabled={submitMut.isPending}
@@ -380,21 +419,33 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
               {submitMut.isPending ? "Đang gửi..." : "Gửi duyệt"}
             </button>
           )}
+          <Link href={`/organization/event/${id}/edit`}
+            className="border border-[#0E5C63] text-[#0E5C63] px-3 py-1.5 rounded text-sm hover:bg-[#0E5C63]/10">
+            Chỉnh sửa
+          </Link>
           <Link href={`/organization/event/${id}/participants`}
             className="bg-[#0E5C63] text-white px-3 py-1.5 rounded text-sm hover:bg-[#0a4a50]">
             Quản lý tham gia
           </Link>
+          {(activity.activityStatus === "draft" || activity.activityStatus === "cancelled") && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="bg-red-500 text-white px-3 py-1.5 rounded text-sm hover:bg-red-600"
+            >
+              Xóa
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── Lifecycle management ─────────────────────────────────────────────── */}
-      {(activity.activityStatus === "published" || isRunning) && (
+      {(activity.activityStatus === "published" || isRunning || (activity.activityStatus === "draft" && isCompetition)) && (
         <div className="bg-white border rounded-lg p-4 space-y-3">
           <p className="text-xs font-medium text-gray-500 uppercase">Quản lý vòng đời</p>
 
           {/* Main action buttons */}
           <div className="flex flex-wrap gap-2 items-center">
-            {activity.activityStatus === "published" && (
+            {(activity.activityStatus === "published" || (activity.activityStatus === "draft" && isCompetition)) && (
               <button onClick={() => startMut.mutate()} disabled={startMut.isPending}
                 className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
                 {startMut.isPending ? "Đang xử lý..." : "Bắt đầu sự kiện"}
@@ -680,7 +731,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
                             {reg.user?.userName ?? "—"}
                             <span className="text-xs text-gray-400 ml-1">({reg.user?.email})</span>
                           </td>
-                          <td className="px-3 py-2 text-center">{(reg.teamMembers?.length ?? 0) + 1}</td>
+                          <td className="px-3 py-2 text-center">{getTeamSize(reg)}</td>
                           <td className="px-3 py-2">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>{st.label}</span>
                           </td>
@@ -696,12 +747,19 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
                                   <span className="text-gray-400">{reg.user?.phoneNumber ?? "Chưa có SĐT"}</span>
                                   <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[10px]">Trưởng nhóm</span>
                                 </div>
-                                {reg.teamMembers?.map(tm => (
+                                {getVisibleTeamMembers(reg).map((tm) => (
                                   <div key={tm.userId} className="flex items-center gap-3 text-xs">
                                     <span className="font-medium">{tm.user?.userName}</span>
-                                    <span className="text-gray-400">{tm.role ?? "Thành viên"}</span>
+                                    <span className="text-gray-400">{tm.user?.email ?? "Chưa có email"}</span>
+                                    <span className="text-gray-400">{tm.user?.phoneNumber ?? "Chưa có SĐT"}</span>
+                                    <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px]">
+                                      {tm.role === "leader" ? "Trưởng nhóm" : "Thành viên"}
+                                    </span>
                                   </div>
                                 ))}
+                                {getVisibleTeamMembers(reg).length === 0 && (
+                                  <p className="text-xs text-gray-400">Chưa có thành viên nào ngoài trưởng nhóm.</p>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -731,6 +789,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
                 onClick={() => {
                   setMatchTeamName("")
                   setMatchLeaderId(null)
+                  setMatchMemberSearch("")
                   setShowMatchDialog(true)
                 }}
                 className="bg-[#08667a] text-white px-3 py-1 rounded text-xs hover:bg-[#065a6c]"
@@ -1000,6 +1059,28 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
       )}
+      {/* ── Delete confirm ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 z-[1000] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="font-semibold text-gray-800">Xóa hoạt động?</h2>
+            <p className="text-sm text-gray-500">
+              Hành động này không thể hoàn tác. Hoạt động <strong>{activity.activityName}</strong> sẽ bị xóa vĩnh viễn.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setConfirmDelete(false)} className="px-4 py-1.5 border rounded text-sm">Hủy</button>
+              <button
+                onClick={() => deleteMut.mutate()}
+                disabled={deleteMut.isPending}
+                className="px-4 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600 disabled:opacity-50"
+              >
+                {deleteMut.isPending ? "Đang xóa..." : "Xóa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Match team dialog ── */}
       {showMatchDialog && (
         <div className="fixed inset-0 bg-black/40 z-[1000] flex items-center justify-center p-4">
@@ -1018,6 +1099,16 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tìm thành viên theo email</label>
+              <input
+                value={matchMemberSearch}
+                onChange={(e) => setMatchMemberSearch(e.target.value)}
+                placeholder="Nhập email để lọc..."
+                className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:border-teal-500"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Trưởng nhóm</label>
               <select
                 value={matchLeaderId ?? ""}
@@ -1025,9 +1116,7 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
                 className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:border-teal-500"
               >
                 <option value="">Chọn trưởng nhóm...</option>
-                {individualRegistrations
-                  .filter(r => selectedIndividuals.has(r.registrationId))
-                  .map(r => (
+                {filteredCandidates.map((r) => (
                     <option key={r.registrationId} value={r.registrationId}>
                       {r.user?.userName} ({r.user?.email})
                     </option>
@@ -1038,14 +1127,15 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
             <div className="text-xs text-gray-500">
               <p className="font-medium mb-1">Thành viên:</p>
               <ul className="space-y-0.5">
-                {individualRegistrations
-                  .filter(r => selectedIndividuals.has(r.registrationId))
-                  .map(r => (
+                {filteredCandidates.map((r) => (
                     <li key={r.registrationId} className={r.registrationId === matchLeaderId ? "text-teal-700 font-medium" : ""}>
                       {r.registrationId === matchLeaderId ? "👑 " : "• "}
                       {r.user?.userName} — {r.user?.email}
                     </li>
                   ))}
+                {filteredCandidates.length === 0 && (
+                  <li className="text-gray-400">Không tìm thấy thành viên theo email.</li>
+                )}
               </ul>
             </div>
 

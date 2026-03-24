@@ -31,7 +31,7 @@ export default function Home() {
 
   const { data: orgsData, isLoading: loadingOrgs } = useQuery({
     queryKey: ["organizations-clubs-recruiting", clubsPage],
-    queryFn: () => getOrganizations({ page: clubsPage, limit: 8, type: "club" }),
+    queryFn: () => getOrganizations({ page: clubsPage, limit: 8, type: "club", isRecruiting: "true" }),
   })
 
   const activities = activitiesData?.data?.data ?? []
