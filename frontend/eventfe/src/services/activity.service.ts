@@ -9,6 +9,9 @@ export interface Activity {
   description: string | null;
   coverImage: string | null;
   location: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  locationName: string | null;
   activityType: string;
   teamMode: string;
   startTime: string | null;
@@ -32,6 +35,10 @@ export interface Activity {
     checkInCloseTime: string | null;
     checkOutTime: string | null;
     checkOutCloseTime: string | null;
+    checkinLatitude: number | null;
+    checkinLongitude: number | null;
+    checkinRadius: number;
+    checkinPlaceName: string | null;
   } | null;
   hasCompletedCheckinSession?: boolean;
 }
@@ -107,6 +114,9 @@ export interface CreateActivityPayload {
   description?: string | null;
   coverImage?: string | null;
   location?: string | null;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationName?: string | null;
   activityType: "program" | "competition" | "recruitment";
   teamMode?: "individual" | "team" | "both";
   startTime?: string | null;
@@ -144,7 +154,14 @@ export interface CheckinSession {
 
 export async function openCheckinSession(
   activityId: number | string,
-  params?: { checkInTime?: string | null; durationMinutes?: number | null }
+  params?: {
+    checkInTime?: string | null
+    durationMinutes?: number | null
+    latitude?: number
+    longitude?: number
+    radius?: number
+    placeName?: string
+  }
 ) {
   return http.post<{ success: boolean; data: CheckinSession }>(
     `${BASE}/${activityId}/checkin-sessions/open`,

@@ -46,4 +46,18 @@ const listUsersByUniversityQuerySchema = z.object({
   university: z.string().optional(),
 });
 
-module.exports = { createUserSchema, createOrganizationSchema, listUsersQuerySchema, listUsersByUniversityQuerySchema };
+const listOrgsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z.string().optional(),
+  organizationType: orgTypeEnum.optional(),
+});
+
+module.exports = {
+  createUserSchema,
+  createOrganizationSchema,
+  listUsersQuerySchema,
+  listUsersByUniversityQuerySchema,
+  listOrgsQuerySchema,
+};

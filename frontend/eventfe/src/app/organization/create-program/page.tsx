@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { ImageUpload } from "@/components/ui-custom/ImageUpload"
+import { LocationPicker, PickedLocation } from "@/components/ui-custom/LocationPicker"
 import { getMyOrganization } from "@/services/organization.service"
 import { getCategories, createActivity } from "@/services/activity.service"
 import { getFormList } from "@/services/form.service"
@@ -36,11 +37,11 @@ export default function CreateProgramPage() {
     startDate: "",
     endDate: "",
     deadline: "",
-    location: "",
     categoryId: "",
     slotMode: "unlimited" as "limited" | "unlimited",
     quantity: "",
   })
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null)
 
   // Step 3
   const [formMode, setFormMode] = useState<"none" | "existing">("none")
@@ -100,7 +101,7 @@ export default function CreateProgramPage() {
   }
 
   const goToStep3 = () => {
-    if (!form.startDate || !form.endDate || !form.deadline || !form.location.trim()) {
+    if (!form.startDate || !form.endDate || !form.deadline) {
       setError("Vui lòng điền đầy đủ thông tin!"); return
     }
     if (!form.categoryId) { setError("Vui lòng chọn phân loại!"); return }
@@ -145,7 +146,10 @@ export default function CreateProgramPage() {
         activityName: form.name,
         description: form.description || null,
         coverImage: coverKey,
-        location: form.location,
+        location: pickedLocation?.name ?? null,
+        locationLat: pickedLocation?.lat ?? null,
+        locationLng: pickedLocation?.lng ?? null,
+        locationName: pickedLocation?.name ?? null,
         activityType: "program",
         teamMode: "individual",
         startTime: new Date(form.startDate).toISOString(),
@@ -274,13 +278,13 @@ export default function CreateProgramPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Địa điểm <span className="text-red-500">*</span></label>
-            <input
-              value={form.location}
-              onChange={(e) => handleChange("location", e.target.value)}
-              className="w-full border border-gray-300 p-2 rounded mt-1 text-sm focus:outline-none focus:border-teal-600"
-              placeholder="Nhập địa điểm tổ chức..."
-            />
+            <label className="text-sm font-medium">Địa điểm</label>
+            <div className="mt-1">
+              <LocationPicker
+                value={pickedLocation}
+                onChange={(val) => setPickedLocation(val)}
+              />
+            </div>
           </div>
 
           {/* Phân loại */}

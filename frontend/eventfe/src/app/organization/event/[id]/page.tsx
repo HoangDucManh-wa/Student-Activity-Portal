@@ -22,6 +22,7 @@ import { http } from "@/configs/http.comfig"
 import { envConfig } from "@/configs/env.config"
 import { toast } from "sonner"
 import { getRegistrationsByActivity, matchTeam, type RegistrationDetailExtended } from "@/services/registration.service"
+import { LocationPicker, type PickedLocation } from "@/components/ui-custom/LocationPicker"
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -52,6 +53,8 @@ const FORM_STATUS_LABEL: Record<string, string> = {
 
 const CONFIG_BASE = `${envConfig.NEXT_PUBLIC_API_URL}/system-config`
 const AUTO_APPROVE_KEY = "registration.auto_approve"
+const CHECKIN_REQUIRE_LOCATION_KEY = "checkin.require_location"
+const CHECKIN_DEFAULT_RADIUS_KEY = "checkin.default_radius"
 
 export default function OrgEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -66,6 +69,11 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
   const [showCheckinDialog, setShowCheckinDialog] = useState(false)
   const [checkinStartTime, setCheckinStartTime] = useState("")
   const [checkinDuration, setCheckinDuration] = useState("")
+  const [checkinPlaceName, setCheckinPlaceName] = useState("")
+  const [checkinLat, setCheckinLat] = useState("")
+  const [checkinLng, setCheckinLng] = useState("")
+  const [checkinRadius, setCheckinRadius] = useState("200")
+  const [checkinLocation, setCheckinLocation] = useState<PickedLocation | null>(null)
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false)
   const [checkoutDuration, setCheckoutDuration] = useState("")
   const [now, setNow] = useState(() => new Date())
@@ -107,6 +115,24 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
     ),
   })
   const autoApproveEnabled = (autoApproveData as any)?.data?.value?.enabled === true
+
+  // Geo checkin config
+  const { data: geoConfigData } = useQuery({
+    queryKey: ["geo-checkin-config"],
+    queryFn: () => http.get<{ success: boolean; data: { value: { enabled: boolean } } }>(
+      `${CONFIG_BASE}/checkin.require_location/my-org`
+    ),
+  })
+  const requireGeoCheckin = (geoConfigData as any)?.data?.value?.enabled === true
+
+  // Default checkin radius config
+  const { data: defaultRadiusData } = useQuery({
+    queryKey: ["default-checkin-radius-config"],
+    queryFn: () => http.get<{ success: boolean; data: { value: { radius: number } } }>(
+      `${CONFIG_BASE}/${CHECKIN_DEFAULT_RADIUS_KEY}/my-org`
+    ),
+  })
+  const defaultRadius = (defaultRadiusData as any)?.data?.value?.radius ?? 200
 
   const activity = result?.data
   const orgForms = (formsData as any)?.data?.data ?? []
@@ -198,10 +224,20 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
   })
 
   const openCheckinMut = useMutation({
-    mutationFn: ({ checkInTime, durationMinutes }: { checkInTime?: string; durationMinutes?: number }) =>
+    mutationFn: ({
+      checkInTime, durationMinutes,
+      latitude, longitude, radius, placeName,
+    }: {
+      checkInTime?: string; durationMinutes?: number
+      latitude?: number; longitude?: number; radius?: number; placeName?: string
+    }) =>
       openCheckinSession(id, {
         checkInTime: checkInTime || null,
         durationMinutes: durationMinutes || null,
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
+        radius: radius ?? undefined,
+        placeName: placeName ?? undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity", id] })
@@ -217,13 +253,24 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
       .slice(0, 16)
     setCheckinStartTime(nowLocal)
     setCheckinDuration("")
+    setCheckinPlaceName("")
+    setCheckinLat("")
+    setCheckinLng("")
+    setCheckinRadius(String(defaultRadius))
+    setCheckinLocation(null)
     setShowCheckinDialog(true)
   }
 
   const handleConfirmCheckin = () => {
+    const lat = checkinLocation?.lat ?? (checkinLat ? Number(checkinLat) : undefined)
+    const lng = checkinLocation?.lng ?? (checkinLng ? Number(checkinLng) : undefined)
     openCheckinMut.mutate({
       checkInTime: checkinStartTime || undefined,
       durationMinutes: checkinDuration ? Number(checkinDuration) : undefined,
+      latitude: lat,
+      longitude: lng,
+      radius: checkinRadius ? Number(checkinRadius) : undefined,
+      placeName: checkinLocation?.name || checkinPlaceName || undefined,
     })
   }
 
@@ -555,6 +602,29 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
 
           {sessionFullyDone && isRunning && !activeSession && (
             <p className="text-xs text-gray-400">Phiên checkin/checkout đã kết thúc. Không thể mở thêm.</p>
+          )}
+
+          {/* Session location info */}
+          {isRunning && activeSession && activeSession.checkinPlaceName && (
+            <div className="text-xs text-gray-500">
+              <span className="text-gray-400">Địa điểm:</span>{" "}
+              <span className="font-medium">{activeSession.checkinPlaceName}</span>
+              {activeSession.checkinLatitude && activeSession.checkinLongitude && (
+                <>
+                  {" "}({activeSession.checkinLatitude.toFixed(5)}, {activeSession.checkinLongitude.toFixed(5)})
+                  {` · `}
+                  <span className="text-teal-600">{activeSession.checkinRadius}m</span>
+                  <a
+                    href={`https://www.google.com/maps?q=${activeSession.checkinLatitude},${activeSession.checkinLongitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-1 text-teal-600 hover:underline"
+                  >
+                    [Bản đồ]
+                  </a>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -934,6 +1004,72 @@ export default function OrgEventDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </div>
             </div>
+
+            {/* ── Location & geo settings ── */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Địa điểm tổ chức <span className="text-gray-400 font-normal">
+                  {requireGeoCheckin ? "(bắt buộc)" : "(tùy chọn)"}
+                </span>
+              </label>
+              <LocationPicker
+                value={checkinLocation}
+                onChange={(loc) => {
+                  setCheckinLocation(loc)
+                  if (loc) {
+                    setCheckinPlaceName(loc.name)
+                    setCheckinLat(String(loc.lat))
+                    setCheckinLng(String(loc.lng))
+                  } else {
+                    setCheckinPlaceName("")
+                    setCheckinLat("")
+                    setCheckinLng("")
+                  }
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Bán kính cho phép <span className="text-gray-400">(mét)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="10"
+                  max="5000"
+                  value={checkinRadius}
+                  onChange={(e) => setCheckinRadius(e.target.value)}
+                  className="w-28 border rounded px-3 py-2 text-sm focus:outline-none focus:border-teal-500"
+                />
+                <div className="flex gap-1">
+                  {[100, 200, 500, 1000].map(r => (
+                    <button key={r} type="button" onClick={() => setCheckinRadius(String(r))}
+                      className={`px-2 py-1 text-xs rounded border ${checkinRadius === String(r) ? "bg-teal-600 text-white border-teal-600" : "border-gray-200 text-gray-600 hover:border-teal-400"}`}>
+                      {r >= 1000 ? `${r/1000}km` : `${r}m`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {requireGeoCheckin && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Sinh viên phải ở trong bán kính {checkinRadius || 200}m mới được check-in.
+                </p>
+              )}
+            </div>
+
+            {requireGeoCheckin && (
+              <div className="flex items-start gap-2 p-2 bg-teal-50 border border-teal-100 rounded text-xs text-teal-700">
+                <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>
+                  Yêu cầu vị trí đang bật. Tổ chức có thể tắt trong{" "}
+                  <strong>Cài đặt hệ thống</strong> nếu không cần kiểm soát địa điểm.
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setShowCheckinDialog(false)} className="px-4 py-1.5 border rounded text-sm">Hủy</button>
               <button onClick={handleConfirmCheckin} disabled={!checkinStartTime || openCheckinMut.isPending}

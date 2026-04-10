@@ -7,6 +7,7 @@ from modules.ask.router import router as ask_router
 from modules.scan_id.router import router as scan_id_router
 from modules.geo_attendance.router import router as geo_attendance_router
 from modules.chatbot.router import router as chatbot_router
+from modules.rag.router import router as rag_router
 
 def create_app() -> FastAPI:
     app = FastAPI(title="AI Service", docs_url="/docs")
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.include_router(ask_router,            prefix="/api/ask")
     app.include_router(scan_id_router,        prefix="/api/scan-id")
     app.include_router(geo_attendance_router, prefix="/api/geo-attendance")
-    app.include_router(chatbot_router,        prefix="/api/chatbot")
+    app.include_router(chatbot_router,         prefix="/api/chatbot")
+    app.include_router(rag_router,            prefix="/api/rag")
 
     return app

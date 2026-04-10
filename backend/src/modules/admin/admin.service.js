@@ -1,11 +1,16 @@
 const bcrypt = require("bcryptjs");
 
 const prisma = require("../../config/prisma");
+const { redis } = require("../../config/redis");
 const AppError = require("../../utils/app-error");
-const { USER_STATUS, CONFIG_KEYS } = require("../../utils/constants");
+const { USER_STATUS, CONFIG_KEYS, REDIS_PREFIX } = require("../../utils/constants");
 const { resolveFields, resolveArrayFields } = require("../../utils/s3-helpers");
 const { getConfig } = require("../system-config/system-config.service");
 const { isStudentEmailSync } = require("../../utils/student-email");
+
+const invalidateUserSession = async (userId) => {
+  await redis.del(`${REDIS_PREFIX.USER_SESSION}${userId}`);
+};
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -606,6 +611,120 @@ const adminToggleOrgStatus = async (orgId, status, updatedBy) => {
   });
 };
 
+// ─── Reset user password (admin) ───────────────────────────────────────────────
+
+const adminResetUserPassword = async (userId, newPassword, resetBy) => {
+  const user = await prisma.user.findFirst({ where: { userId: Number(userId), isDeleted: false } });
+  if (!user) throw new AppError("USER_NOT_FOUND");
+
+  const hashed = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({
+    where: { userId: Number(userId) },
+    data: { password: hashed, updatedBy: Number(resetBy), updatedAt: new Date() },
+  });
+
+  await invalidateUserSession(Number(userId));
+
+  return { userId: Number(userId), email: user.email };
+};
+
+// ─── Reset organization password (admin) ──────────────────────────────────────
+// Org leader logs in with their USER account via /auth/login (role=organization_leader).
+// So we find and reset the leader's user password, not the organization.password field.
+
+const adminResetOrgPassword = async (orgId, newPassword, resetBy) => {
+  const org = await prisma.organization.findFirst({ where: { organizationId: Number(orgId), isDeleted: false } });
+  if (!org) throw new AppError("ORGANIZATION_NOT_FOUND");
+
+  const leaderMember = await prisma.organizationMember.findFirst({
+    where: {
+      organizationId: Number(orgId),
+      role: "president",
+      isDeleted: false,
+    },
+    include: { user: { select: { userId: true, email: true } } },
+  });
+
+  if (!leaderMember?.user) {
+    throw new AppError("VALIDATION_ERROR", "Không tìm thấy tài khoản quản lý của tổ chức này");
+  }
+
+  const { user } = leaderMember;
+  const hashed = await bcrypt.hash(newPassword, 12);
+  console.log(`[AdminResetOrgPwd] orgId=${orgId} userId=${user.userId} email=${user.email} resetBy=${resetBy}`);
+
+  await prisma.user.update({
+    where: { userId: user.userId },
+    data: { password: hashed, updatedBy: Number(resetBy), updatedAt: new Date() },
+  });
+
+  await invalidateUserSession(user.userId);
+
+  return { organizationId: Number(orgId), userId: user.userId, email: user.email };
+};
+
+// ─── Account recovery: find user by name/phone/studentId ────────────────────────
+
+const recoverUserAccount = async ({ userName, phoneNumber, studentId }) => {
+  if (!userName && !phoneNumber && !studentId) {
+    throw new AppError("VALIDATION_ERROR", "Cần ít nhất 1 thông tin: tên, SĐT hoặc mã sinh viên");
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      isDeleted: false,
+      ...(userName ? { userName: { contains: userName, mode: "insensitive" } } : {}),
+      ...(phoneNumber ? { phoneNumber: { contains: phoneNumber, mode: "insensitive" } } : {}),
+      ...(studentId ? { studentId: { contains: studentId, mode: "insensitive" } } : {}),
+    },
+    select: {
+      userId: true,
+      userName: true,
+      email: true,
+      studentId: true,
+      phoneNumber: true,
+      university: true,
+      status: true,
+      avatarUrl: true,
+      userRoles: {
+        where: { isDeleted: false },
+        select: { role: { select: { code: true } } },
+      },
+    },
+    take: 10,
+  });
+
+  return users.map(({ userRoles, ...u }) => ({
+    ...u,
+    roles: userRoles.map((ur) => ur.role?.code).filter(Boolean),
+  }));
+};
+
+// ─── Resend password reset email for user ──────────────────────────────────────
+
+const resendResetEmail = async (userId) => {
+  const user = await prisma.user.findFirst({ where: { userId: Number(userId), isDeleted: false } });
+  if (!user) throw new AppError("USER_NOT_FOUND");
+
+  const { forgotPassword } = require("../auth/auth.service");
+  await forgotPassword(user.email);
+
+  return { email: user.email };
+};
+
+// ─── Resend password reset email for organization ───────────────────────────────
+
+const resendOrgResetEmail = async (orgId) => {
+  const org = await prisma.organization.findFirst({ where: { organizationId: Number(orgId), isDeleted: false } });
+  if (!org) throw new AppError("ORGANIZATION_NOT_FOUND");
+  if (!org.email) throw new AppError("VALIDATION_ERROR", "Tổ chức chưa có email");
+
+  const { forgotPasswordOrganization } = require("../auth/auth.service");
+  await forgotPasswordOrganization(org.email);
+
+  return { email: org.email };
+};
+
 // ─── Promote user to admin or organization_leader ─────────────────────────────
 
 const promoteUser = async (userId, { role, organization } = {}, promotedBy) => {
@@ -672,9 +791,14 @@ module.exports = {
   adminUpdateUser,
   adminDeleteUser,
   adminToggleUserStatus,
+  adminResetUserPassword,
   listOrganizations,
   adminUpdateOrganization,
   adminDeleteOrganization,
   adminToggleOrgStatus,
+  adminResetOrgPassword,
+  recoverUserAccount,
+  resendResetEmail,
+  resendOrgResetEmail,
   promoteUser,
 };

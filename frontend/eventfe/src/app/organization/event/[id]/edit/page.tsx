@@ -5,6 +5,7 @@ import { use, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { ImageUpload } from "@/components/ui-custom/ImageUpload"
+import { LocationPicker, PickedLocation } from "@/components/ui-custom/LocationPicker"
 import { getActivityById, updateActivity, getCategories } from "@/services/activity.service"
 import { getFormList } from "@/services/form.service"
 import { uploadFileToS3 } from "@/services/upload.service"
@@ -38,13 +39,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     startDate: "",
     endDate: "",
     deadline: "",
-    location: "",
     categoryId: "",
     slotMode: "unlimited" as "limited" | "unlimited",
     quantity: "",
     activityType: "program",
     teamMode: "individual" as "individual" | "team",
   })
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null)
 
   const [formMode, setFormMode] = useState<"none" | "existing">("none")
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
@@ -100,7 +101,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       startDate: a.startTime ? new Date(a.startTime).toISOString().slice(0, 16) : "",
       endDate: a.endTime ? new Date(a.endTime).toISOString().slice(0, 16) : "",
       deadline: a.registrationDeadline ? new Date(a.registrationDeadline).toISOString().slice(0, 16) : "",
-      location: a.location ?? "",
       categoryId: a.category?.categoryId ? String(a.category.categoryId) : "",
       slotMode: a.maxParticipants != null ? "limited" : "unlimited",
       quantity: a.maxParticipants != null ? String(a.maxParticipants) : "",
@@ -110,6 +110,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     setCoverKey(a.coverImage ?? null)
     setFormMode(a.registrationFormId ? "existing" : "none")
     setSelectedFormId(a.registrationFormId ?? null)
+    if (a.locationLat != null && a.locationLng != null) {
+      setPickedLocation({
+        lat: a.locationLat,
+        lng: a.locationLng,
+        name: a.locationName ?? a.location ?? "",
+      })
+    }
   }, [activity])
 
   const categories = (categoriesData as any)?.data ?? []
@@ -129,7 +136,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   }
 
   const goToStep3 = () => {
-    if (!form.startDate || !form.endDate || !form.deadline || !form.location.trim()) {
+    if (!form.startDate || !form.endDate || !form.deadline) {
       setError("Vui lòng điền đầy đủ thông tin!"); return
     }
     if (!form.categoryId) { setError("Vui lòng chọn phân loại!"); return }
@@ -174,7 +181,10 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       const res = await updateActivity(activityId, {
         activityName: form.activityName,
         description: form.description || null,
-        location: form.location,
+        location: pickedLocation?.name ?? null,
+        locationLat: pickedLocation?.lat ?? null,
+        locationLng: pickedLocation?.lng ?? null,
+        locationName: pickedLocation?.name ?? null,
         activityType: form.activityType as "program" | "competition" | "recruitment",
         teamMode: form.teamMode as "individual" | "team",
         startTime: new Date(form.startDate).toISOString(),
@@ -334,13 +344,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Địa điểm <span className="text-red-500">*</span></label>
-            <input
-              value={form.location}
-              onChange={(e) => handleChange("location", e.target.value)}
-              className="w-full border border-gray-300 p-2 rounded mt-1 text-sm focus:outline-none focus:border-teal-600"
-              placeholder="Nhập địa điểm tổ chức..."
-            />
+            <label className="text-sm font-medium">Địa điểm</label>
+            <div className="mt-1">
+              <LocationPicker
+                value={pickedLocation}
+                onChange={(val) => setPickedLocation(val)}
+              />
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">Phân loại <span className="text-red-500">*</span></label>

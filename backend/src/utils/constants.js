@@ -85,9 +85,11 @@ const NOTIFICATION_TYPE = {
 const REDIS_PREFIX = {
   BLACKLIST: "blacklist:",
   REFRESH: "refresh:",
+  ORG_REFRESH: "org_refresh:",
   RESET_PASSWORD: "reset_pwd:",
   RESET_ORG_PWD: "reset_org_pwd:",
   USER_SESSION: "user:session:",
+  ORG_SESSION: "org:session:",
   GOOGLE_OAUTH_CODE: "google_code:",
   OTP: "otp:",
 };
@@ -158,6 +160,8 @@ const CONFIG_KEYS = {
   SYSTEM_MAINTENANCE: "system.maintenance_mode",
   STUDENT_ALLOWED_DOMAINS: "student.allowed_email_domains",
   HOMEPAGE_BANNER_SLIDES: "homepage.banner_slides",
+  CHECKIN_REQUIRE_LOCATION: "checkin.require_location",
+  CHECKIN_DEFAULT_RADIUS: "checkin.default_radius",
 };
 
 const CONFIG_DEFAULTS = {
@@ -189,6 +193,8 @@ const CONFIG_DEFAULTS = {
       { imageUrl: "/slide.png", linkUrl: null, alt: "Banner 3" },
     ],
   },
+  [CONFIG_KEYS.CHECKIN_REQUIRE_LOCATION]: { enabled: true },
+  [CONFIG_KEYS.CHECKIN_DEFAULT_RADIUS]: { radius: 200 },
 };
 
 module.exports = {

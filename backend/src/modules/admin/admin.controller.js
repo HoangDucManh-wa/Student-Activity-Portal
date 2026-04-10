@@ -160,12 +160,60 @@ const promoteUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const adminResetUserPassword = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+    if (!password || typeof password !== "string" || password.length < 8) {
+      return res.status(400).json({ success: false, error: "Mật khẩu phải có ít nhất 8 ký tự" });
+    }
+    const data = await adminService.adminResetUserPassword(req.params.id, password, req.user.userId);
+    return success(res, { message: "Đặt lại mật khẩu thành công", ...data });
+  } catch (err) { next(err); }
+};
+
+const adminResetOrgPassword = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+    if (!password || typeof password !== "string" || password.length < 8) {
+      return res.status(400).json({ success: false, error: "Mật khẩu phải có ít nhất 8 ký tự" });
+    }
+    const data = await adminService.adminResetOrgPassword(req.params.id, password, req.user.userId);
+    return success(res, { message: "Đặt lại mật khẩu thành công", ...data });
+  } catch (err) { next(err); }
+};
+
+const recoverUserAccount = async (req, res, next) => {
+  try {
+    const { userName, phoneNumber, studentId } = req.query;
+    if (!userName && !phoneNumber && !studentId) {
+      return res.status(400).json({ success: false, error: "Cần ít nhất 1 thông tin: tên, SĐT hoặc mã sinh viên" });
+    }
+    const data = await adminService.recoverUserAccount({ userName, phoneNumber, studentId });
+    return success(res, data);
+  } catch (err) { next(err); }
+};
+
+const resendResetEmail = async (req, res, next) => {
+  try {
+    const data = await adminService.resendResetEmail(req.params.id);
+    return success(res, { message: `Email đặt lại mật khẩu đã được gửi đến ${data.email}`, email: data.email });
+  } catch (err) { next(err); }
+};
+
+const resendOrgResetEmail = async (req, res, next) => {
+  try {
+    const data = await adminService.resendOrgResetEmail(req.params.id);
+    return success(res, { message: `Email đặt lại mật khẩu đã được gửi đến ${data.email}`, email: data.email });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   getOverviewStats, getActivityStats, getRegistrationTrend,
   createUser, importUsersFromCSV,
   createOrganization, importOrgsFromCSV,
   listUsers, listUsersByUniversity,
-  adminUpdateUser, adminDeleteUser, adminToggleUserStatus,
+  adminUpdateUser, adminDeleteUser, adminToggleUserStatus, adminResetUserPassword,
   promoteUser,
-  listOrganizations, adminUpdateOrganization, adminDeleteOrganization, adminToggleOrgStatus,
+  listOrganizations, adminUpdateOrganization, adminDeleteOrganization, adminToggleOrgStatus, adminResetOrgPassword,
+  recoverUserAccount, resendResetEmail, resendOrgResetEmail,
 };

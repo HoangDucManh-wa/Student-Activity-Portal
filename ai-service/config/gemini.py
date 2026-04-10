@@ -16,3 +16,8 @@ def get_model(model_name: str = None) -> genai.GenerativeModel:
     _ensure_configured()
     name = model_name or os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     return genai.GenerativeModel(name)
+
+def get_embedding_model():
+    """Return Gemini embedding model for vector search."""
+    _ensure_configured()
+    return genai.get_model("models/embedding-001")

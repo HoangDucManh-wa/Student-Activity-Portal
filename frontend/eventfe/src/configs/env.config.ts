@@ -7,6 +7,8 @@ const envVariable = {
   NODE_ENV: z.enum(['development', 'production', 'test']).nullable(),
   COOKIE_ACCESS_TOKEN_MAX_AGE: z.string().optional(),
   COOKIE_REFRESH_TOKEN_MAX_AGE: z.string().optional(),
+  NEXT_PUBLIC_GOOGLE_MAPS_KEY: z.string().optional(),
+  NEXT_PUBLIC_MAPBOX_TOKEN: z.string().optional(),
 }
 
 
@@ -21,6 +23,8 @@ const result = await envSchema.safeParseAsync({
   NODE_ENV: process.env.NODE_ENV,
   COOKIE_ACCESS_TOKEN_MAX_AGE: process.env.COOKIE_ACCESS_TOKEN_MAX_AGE,
   COOKIE_REFRESH_TOKEN_MAX_AGE: process.env.COOKIE_REFRESH_TOKEN_MAX_AGE,
+  NEXT_PUBLIC_GOOGLE_MAPS_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY,
+  NEXT_PUBLIC_MAPBOX_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
 })
 
 if (!result.success) {

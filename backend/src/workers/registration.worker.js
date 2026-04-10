@@ -126,8 +126,9 @@ const processRegistrationJob = async (job) => {
           data: { status: REGISTRATION_STATUS.APPROVED, updatedAt: new Date() },
         });
       }
-    } catch (_) {
-      // Config unavailable — keep pending (safe default)
+    } catch (err) {
+      // Config lookup failure — registration stays pending (safe default)
+      console.error(`[RegistrationWorker] Auto-approve failed for org ${organizationId}:`, err?.message ?? err);
     }
   }
 

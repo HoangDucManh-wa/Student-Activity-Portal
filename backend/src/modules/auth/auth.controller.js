@@ -147,6 +147,15 @@ const resetPasswordOrganization = async (req, res, next) => {
   }
 };
 
+const loginOrganization = async (req, res, next) => {
+  try {
+    const result = await authService.loginOrganization(req.body);
+    return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -162,4 +171,5 @@ module.exports = {
   exchangeGoogleCode,
   forgotPasswordOrganization,
   resetPasswordOrganization,
+  loginOrganization,
 };

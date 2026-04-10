@@ -1,0 +1,9 @@
+alized 'providers' sequence, normalized
+        'provider_options' sequence).
+
+    'providers' can contain either names or names and options. When any options
+        are given in 'providers', 'provider_options' should not be used.
+
+    The normalized result is a tuple of:
+    1. Sequence of provider names in the same order as 'providers'.
+    2. Sequence of corresponding provider options dicts wi

@@ -38,11 +38,28 @@ const buildTokens = (userId, role) => {
   };
 };
 
-// Store SHA-256 hash of refresh token (not the raw token)
-const storeRefreshToken = async (userId, refreshToken) => {
+const buildOrgTokens = (organizationId) => {
+  const payload = { id: organizationId, type: "organization" };
+  return {
+    accessToken: signAccessToken(payload),
+    refreshToken: signRefreshToken(payload),
+  };
+};
+
+// Store org refresh token with separate prefix to avoid collision with user tokens
+const storeOrgRefreshToken = async (organizationId, refreshToken) => {
   const decoded = decodeToken(refreshToken);
   const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-  await redis.setex(`${REDIS_PREFIX.REFRESH}${userId}`, ttl, hashToken(refreshToken));
+  await redis.setex(`${REDIS_PREFIX.ORG_REFRESH}${organizationId}`, ttl, hashToken(refreshToken));
+};
+
+// Store SHA-256 hash of refresh token (not the raw token)
+// Handles both user and organization tokens based on decoded payload
+const storeRefreshToken = async (id, refreshToken, type = "user") => {
+  const decoded = decodeToken(refreshToken);
+  const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+  const prefix = type === "organization" ? REDIS_PREFIX.ORG_REFRESH : REDIS_PREFIX.REFRESH;
+  await redis.setex(`${prefix}${id}`, ttl, hashToken(refreshToken));
 };
 
 const invalidateUserSession = async (userId) => {
@@ -159,18 +176,25 @@ const refreshToken = async (token) => {
     throw new AppError("AUTH_REFRESH_INVALID");
   }
 
-  const storedHash = await redis.get(`${REDIS_PREFIX.REFRESH}${decoded.id}`);
-  // Compare stored hash with hash of presented token
+  const isOrg = decoded.type === "organization";
+  const prefix = isOrg ? REDIS_PREFIX.ORG_REFRESH : REDIS_PREFIX.REFRESH;
+  const storedHash = await redis.get(`${prefix}${decoded.id}`);
+
   if (!storedHash || storedHash !== hashToken(token)) {
     throw new AppError("AUTH_REFRESH_INVALID");
   }
 
   // Rotate: issue new access + refresh tokens
-  const newAccessToken = signAccessToken({ id: decoded.id, role: decoded.role });
-  const newRefreshToken = signRefreshToken({ id: decoded.id, role: decoded.role });
-  await storeRefreshToken(decoded.id, newRefreshToken);
-
-  return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  if (isOrg) {
+    const newTokens = buildOrgTokens(decoded.id);
+    await storeOrgRefreshToken(decoded.id, newTokens.refreshToken);
+    return newTokens;
+  } else {
+    const role = await getUserPrimaryRole(decoded.id);
+    const newTokens = buildTokens(decoded.id, role);
+    await storeRefreshToken(decoded.id, newTokens.refreshToken);
+    return { accessToken: newTokens.accessToken, refreshToken: newTokens.refreshToken };
+  }
 };
 
 const forgotPassword = async (email) => {
@@ -370,6 +394,46 @@ const resetPasswordOrganization = async (token, newPassword) => {
   await redis.del(redisKey);
 };
 
+// ─── Organization login ───────────────────────────────────────────────────────────
+
+const loginOrganization = async ({ email, password }) => {
+  const org = await prisma.organization.findFirst({
+    where: { email, isDeleted: false },
+  });
+
+  if (!org) {
+    throw new AppError("AUTH_INVALID_CREDS");
+  }
+
+  if (!org.password) {
+    throw new AppError("AUTH_INVALID_CREDS");
+  }
+
+  const valid = await bcrypt.compare(password, org.password);
+  if (!valid) {
+    throw new AppError("AUTH_INVALID_CREDS");
+  }
+
+  if (org.status === "banned" || org.status === "suspended") {
+    throw new AppError("AUTH_ACCOUNT_LOCKED");
+  }
+
+  const { accessToken, refreshToken } = buildOrgTokens(org.organizationId);
+  await storeOrgRefreshToken(org.organizationId, refreshToken);
+
+  return {
+    organization: {
+      organizationId: org.organizationId,
+      organizationName: org.organizationName,
+      organizationType: org.organizationType,
+      email: org.email,
+      status: org.status,
+    },
+    accessToken,
+    refreshToken,
+  };
+};
+
 module.exports = {
   register,
   login,
@@ -384,4 +448,5 @@ module.exports = {
   exchangeGoogleCode,
   forgotPasswordOrganization,
   resetPasswordOrganization,
+  loginOrganization,
 };

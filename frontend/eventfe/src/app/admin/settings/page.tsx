@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Settings, ToggleLeft, ToggleRight, Trash2, Plus, GripVertical, ImageIcon } from "lucide-react"
+import { Settings, ToggleLeft, ToggleRight, Trash2, Plus, GripVertical, ImageIcon, X } from "lucide-react"
 import Image from "next/image"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
@@ -115,9 +115,11 @@ function ConfigNumber({
 function OrgOverridesSection({
   configKey,
   organizations,
+  globalEnabled,
 }: {
   configKey: string
   organizations: OrgOption[]
+  globalEnabled: boolean
 }) {
   const queryClient = useQueryClient()
   const [selectedOrgId, setSelectedOrgId] = useState<number | "">("")
@@ -142,6 +144,16 @@ function OrgOverridesSection({
     onError: () => toast.error("Thao tac that bai"),
   })
 
+  const toggleOverrideMut = useMutation({
+    mutationFn: ({ orgId, enabled }: { orgId: number; enabled: boolean }) =>
+      updateConfig(configKey, { enabled }, orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["config-overrides", configKey] })
+      toast.success("Da cap nhat")
+    },
+    onError: () => toast.error("Thao tac that bai"),
+  })
+
   const deleteMut = useMutation({
     mutationFn: (orgId: number) => deleteOrgOverride(configKey, orgId),
     onSuccess: () => {
@@ -162,6 +174,7 @@ function OrgOverridesSection({
         <div className="space-y-1">
           {overrides.map((ov) => {
             const enabled = (ov.value as { enabled?: boolean })?.enabled
+            const isDifferent = enabled !== globalEnabled
             return (
               <div
                 key={ov.configId}
@@ -170,17 +183,32 @@ function OrgOverridesSection({
                 <span className="font-medium">
                   {ov.organization?.organizationName ?? `Org #${ov.organizationId}`}
                 </span>
-                <span className={enabled ? "text-green-600" : "text-red-500"}>
-                  {enabled ? "BAT" : "TAT"}
+                {isDifferent && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${enabled ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {enabled ? "BAT" : "TAT"}
+                  </span>
+                )}
+                <span className={`text-xs px-1.5 py-0.5 rounded ${isDifferent ? "bg-gray-200 text-gray-500" : "bg-gray-100 text-gray-400"}`}>
+                  mac dinh: {globalEnabled ? "BAT" : "TAT"}
                 </span>
-                <button
-                  onClick={() => ov.organizationId && deleteMut.mutate(ov.organizationId)}
-                  disabled={deleteMut.isPending}
-                  className="ml-auto text-red-400 hover:text-red-600 disabled:opacity-50"
-                  title="Xoa override"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="ml-auto flex items-center gap-1">
+                  <button
+                    onClick={() => ov.organizationId && toggleOverrideMut.mutate({ orgId: ov.organizationId, enabled: enabled === true ? false : true })}
+                    disabled={toggleOverrideMut.isPending}
+                    title={enabled ? "Tat override" : "Bat override"}
+                    className={`p-1 rounded transition-colors ${enabled ? "hover:bg-red-50 text-gray-400 hover:text-red-500" : "hover:bg-green-50 text-gray-400 hover:text-green-600"}`}
+                  >
+                    {enabled ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => ov.organizationId && deleteMut.mutate(ov.organizationId)}
+                    disabled={deleteMut.isPending}
+                    className="p-1 text-red-400 hover:text-red-600 disabled:opacity-50"
+                    title="Xoa override"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -212,13 +240,13 @@ function OrgOverridesSection({
           <button
             onClick={() => {
               if (selectedOrgId) {
-                addMut.mutate({ orgId: selectedOrgId as number, value: { enabled: false } })
+                addMut.mutate({ orgId: selectedOrgId as number, value: { enabled: globalEnabled } })
               }
             }}
             disabled={!selectedOrgId || addMut.isPending}
             className="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 disabled:opacity-50"
           >
-            Them
+            Them (={globalEnabled ? "BAT" : "TAT"})
           </button>
           <button
             onClick={() => {
@@ -239,6 +267,88 @@ interface BannerSlide {
   imageUrl: string
   linkUrl: string
   alt: string
+}
+
+function ConfigDomainList({
+  config,
+  onUpdate,
+  isPending,
+}: {
+  config: SystemConfigItem
+  onUpdate: (key: string, value: Record<string, unknown>) => void
+  isPending: boolean
+}) {
+  const domains = (config.value as { domains?: string[] })?.domains ?? []
+  const [localDomains, setLocalDomains] = useState(domains)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => { setLocalDomains(domains); setDirty(false) }, [domains])
+
+  const addDomain = () => {
+    const d = window.prompt("Nhập đuôi email (VD: edu.vn)")
+    if (d && !localDomains.includes(d.trim().toLowerCase())) {
+      setLocalDomains((prev) => [...prev, d.trim().toLowerCase()])
+      setDirty(true)
+    }
+  }
+
+  const removeDomain = (d: string) => {
+    setLocalDomains((prev) => prev.filter((x) => x !== d))
+    setDirty(true)
+  }
+
+  const save = () => {
+    onUpdate(config.key, { domains: localDomains })
+    setDirty(false)
+  }
+
+  return (
+    <div className="py-4 px-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="font-medium text-sm">{config.label}</p>
+          {config.description && (
+            <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+          )}
+          <span className="text-xs text-gray-400 font-mono mt-1 block">{config.key}</span>
+        </div>
+        {dirty && (
+          <button
+            onClick={save}
+            disabled={isPending}
+            className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            Lưu thay đổi
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {localDomains.map((d) => (
+          <span
+            key={d}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-full"
+          >
+            @{d}
+            <button
+              onClick={() => removeDomain(d)}
+              className="hover:text-red-600 ml-0.5"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        {localDomains.length === 0 && (
+          <p className="text-xs text-gray-400">Chưa có đuôi email nào</p>
+        )}
+      </div>
+      <button
+        onClick={addDomain}
+        className="mt-3 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+      >
+        <Plus className="w-3.5 h-3.5" /> Thêm đuôi email
+      </button>
+    </div>
+  )
 }
 
 function ConfigBannerSlides({
@@ -424,6 +534,7 @@ export default function AdminSettingsPage() {
 
   const renderConfig = (config: SystemConfigItem) => {
     if (config.dataType === "boolean") {
+      const enabled = (config.value as { enabled?: boolean })?.enabled ?? false
       return (
         <div key={config.configId}>
           <ConfigToggle
@@ -431,7 +542,7 @@ export default function AdminSettingsPage() {
             onToggle={handleUpdate}
             isPending={updateMut.isPending}
           />
-          <OrgOverridesSection configKey={config.key} organizations={organizations} />
+          <OrgOverridesSection configKey={config.key} organizations={organizations} globalEnabled={enabled} />
         </div>
       )
     }
@@ -443,6 +554,13 @@ export default function AdminSettingsPage() {
             onUpdate={handleUpdate}
             isPending={updateMut.isPending}
           />
+        </div>
+      )
+    }
+    if (config.key === "student.allowed_email_domains") {
+      return (
+        <div key={config.configId} className="border-b last:border-b-0">
+          <ConfigDomainList config={config} onUpdate={handleUpdate} isPending={updateMut.isPending} />
         </div>
       )
     }

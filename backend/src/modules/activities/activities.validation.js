@@ -4,7 +4,10 @@ const createActivitySchema = z.object({
   activityName: z.string().min(1, "Tên hoạt động là bắt buộc").max(255),
   description: z.string().optional().nullable(),
   coverImage: z.string().optional().nullable(),
-  location: z.string().max(255).optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
+  locationLat: z.number().min(-90).max(90).optional().nullable(),
+  locationLng: z.number().min(-180).max(180).optional().nullable(),
+  locationName: z.string().max(500).optional().nullable(),
   activityType: z.enum(["program", "competition"]),
   teamMode: z.enum(["individual", "team", "both"]).default("individual"),
   startTime: z.coerce.date().optional().nullable(),
@@ -26,7 +29,10 @@ const updateActivitySchema = z.object({
   activityName: z.string().min(1).max(255).optional(),
   description: z.string().optional().nullable(),
   coverImage: z.string().optional().nullable(),
-  location: z.string().max(255).optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
+  locationLat: z.number().min(-90).max(90).optional().nullable(),
+  locationLng: z.number().min(-180).max(180).optional().nullable(),
+  locationName: z.string().max(500).optional().nullable(),
   activityType: z.enum(["program", "competition"]).optional(),
   teamMode: z.enum(["individual", "team", "both"]).optional(),
   startTime: z.coerce.date().optional().nullable(),
@@ -74,6 +80,10 @@ const createCheckinSessionSchema = z.object({
 const openCheckinBodySchema = z.object({
   checkInTime: z.coerce.date().optional().nullable(),
   checkOutTime: z.coerce.date().optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  radius: z.number().int().min(10).max(5000).optional().nullable(),
+  placeName: z.string().optional().nullable(),
 });
 
 module.exports = {

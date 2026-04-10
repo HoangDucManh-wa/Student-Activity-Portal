@@ -11,5 +11,6 @@ router.use(protect);
 router.post("/search", validate(searchSchema), controller.search);
 router.post("/recommend", validate(recommendSchema), controller.recommend);
 router.post("/ask", validate(askSchema), controller.ask);
+router.post("/reindex", controller.reindex);
 
 module.exports = router;

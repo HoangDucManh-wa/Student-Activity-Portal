@@ -228,6 +228,7 @@ export async function createRegistrationWithForm(
     teamMembers?: { userId: number; role: string }[];
     formResponse?: {
       formId: number;
+      activityId: number;
       answers: {
         questionId: number;
         textValue?: string | null;

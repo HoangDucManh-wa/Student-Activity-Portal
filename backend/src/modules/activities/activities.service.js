@@ -178,7 +178,9 @@ const getActivityById = async (activityId) => {
   ]);
   const result = {
     ...activity,
-    activeCheckinSession: activeCheckinSession || null,
+    activeCheckinSession: activeCheckinSession
+      ? { ...activeCheckinSession, windowStatus: getCheckinWindowStatus(activeCheckinSession) }
+      : null,
     hasCompletedCheckinSession: completedSessionCount > 0,
   };
 
@@ -552,6 +554,18 @@ const createCategory = async (data, createdBy) => {
   });
 };
 
+// ─── Checkin window status helper ────────────────────────────────────────────
+// 'none' | 'checkin_open' | 'checkin_closed' | 'checkout_open' | 'checkout_closed'
+
+const getCheckinWindowStatus = (session) => {
+  if (!session) return "none";
+  const now = new Date();
+  if (!session.checkInCloseTime || now <= new Date(session.checkInCloseTime)) return "checkin_open";
+  if (!session.checkOutTime) return "checkin_closed";
+  if (!session.checkOutCloseTime || now <= new Date(session.checkOutCloseTime)) return "checkout_open";
+  return "checkout_closed";
+};
+
 // ─── Checkin sessions ───────────────────────────────────────────────────────
 
 const createCheckinSession = async (activityId, data, userId, roles) => {
@@ -617,6 +631,10 @@ const openCheckin = async (activityId, data, userId, roles) => {
       activityId: Number(activityId),
       checkInTime: startAt,
       checkInCloseTime: closeAt,
+      checkinLatitude: data?.latitude ?? null,
+      checkinLongitude: data?.longitude ?? null,
+      checkinRadius: data?.radius ?? 200,
+      checkinPlaceName: data?.placeName ?? null,
     },
   });
 
@@ -762,4 +780,5 @@ module.exports = {
   extendCheckin,
   extendCheckout,
   getMyOrgActivities,
+  getCheckinWindowStatus,
 };

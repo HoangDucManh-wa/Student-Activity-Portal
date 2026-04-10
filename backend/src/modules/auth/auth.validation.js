@@ -47,7 +47,12 @@ const forgotPasswordOrganizationSchema = z.object({
 
 const resetPasswordOrganizationSchema = z.object({
   token: z.string().min(1, "Invalid token"),
-  newPassword: z.string().min(6, "New password must be at least 6 characters"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+const loginOrganizationSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(1, "Password is required"),
 });
 
 module.exports = {
@@ -61,4 +66,5 @@ module.exports = {
   resendOtpSchema,
   forgotPasswordOrganizationSchema,
   resetPasswordOrganizationSchema,
+  loginOrganizationSchema,
 };

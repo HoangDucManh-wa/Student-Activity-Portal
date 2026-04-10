@@ -32,7 +32,7 @@ type ParticipantRow = {
   registrationId: number;
   status: string;
   teamName?: string;
-  roleLabel: "Trưởng nhóm" | "Thành viên";
+  roleLabel?: "Trưởng nhóm" | "Thành viên";
   canApprove: boolean;
   user: {
     userName: string;
@@ -132,6 +132,29 @@ export default function ParticipantsPage() {
   const stats = (statsData as any)?.data;
 
   const participantRows: ParticipantRow[] = registrations.flatMap((r) => {
+    // Individual registration: no leader/member distinction
+    if (r.registrationType !== "group") {
+      return [{
+        key: `reg-${r.registrationId}-self`,
+        registrationId: r.registrationId,
+        status: r.status,
+        teamName: undefined,
+        roleLabel: undefined,
+        canApprove: true,
+        user: {
+          userName: r.user?.userName ?? "—",
+          email: r.user?.email ?? "—",
+          studentId: r.user?.studentId ?? null,
+          phoneNumber: r.user?.phoneNumber ?? null,
+          university: r.user?.university ?? null,
+          faculty: r.user?.faculty ?? null,
+          className: r.user?.className ?? null,
+          avatarUrl: r.user?.avatarUrl ?? null,
+        },
+      }];
+    }
+
+    // Group registration: leader row + member rows
     const leader: ParticipantRow = {
       key: `reg-${r.registrationId}-leader`,
       registrationId: r.registrationId,
@@ -396,10 +419,12 @@ export default function ParticipantsPage() {
                       <Avatar src={r.user.avatarUrl} name={r.user.userName} />
                       <div className="min-w-0">
                         <p className="truncate font-medium">{r.user.userName}</p>
-                        <p className="text-[10px] text-gray-400">
-                          {r.roleLabel}
-                          {r.teamName ? ` · ${r.teamName}` : ""}
-                        </p>
+                        {r.roleLabel && (
+                          <p className="text-[10px] text-gray-400">
+                            {r.roleLabel}
+                            {r.teamName ? ` · ${r.teamName}` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <span className="truncate text-gray-500">{r.user.email}</span>
@@ -426,9 +451,7 @@ export default function ParticipantsPage() {
                           Từ chối
                         </button>
                       )}
-                      {!r.canApprove && (
-                        <span className="text-[10px] text-gray-400">Theo trạng thái đội</span>
-                      )}
+                      {!r.canApprove && <span />}
                     </div>
                   </div>
                 ))}

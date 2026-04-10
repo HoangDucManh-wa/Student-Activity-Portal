@@ -3,7 +3,7 @@ const controller = require("./admin.controller");
 const validate = require("../../middlewares/validate.middleware");
 const { protect } = require("../../middlewares/auth.middleware");
 const { authorize } = require("../../middlewares/role.middleware");
-const { createUserSchema, createOrganizationSchema, listUsersQuerySchema, listUsersByUniversityQuerySchema } = require("./admin.validation");
+const { createUserSchema, createOrganizationSchema, listUsersQuerySchema, listUsersByUniversityQuerySchema, listOrgsQuerySchema } = require("./admin.validation");
 const { validateQuery } = require("../../middlewares/validate.middleware");
 
 const router = Router();
@@ -45,6 +45,7 @@ router.put("/users/:id", controller.adminUpdateUser);
 router.delete("/users/:id", controller.adminDeleteUser);
 router.patch("/users/:id/status", controller.adminToggleUserStatus);
 router.post("/users/:id/promote", controller.promoteUser);
+router.post("/users/:id/reset-password", controller.adminResetUserPassword);
 
 // ─── Organization management ──────────────────────────────────────────────────
 
@@ -67,9 +68,15 @@ const csvMiddleware = (req, res, next) => {
 router.post("/organizations/import", csvMiddleware, controller.importOrgsFromCSV);
 
 // Danh sách, chỉnh sửa, xóa, khóa/mở khóa organization
-router.get("/organizations", controller.listOrganizations);
+router.get("/organizations", validateQuery(listOrgsQuerySchema), controller.listOrganizations);
 router.put("/organizations/:id", controller.adminUpdateOrganization);
 router.delete("/organizations/:id", controller.adminDeleteOrganization);
 router.patch("/organizations/:id/status", controller.adminToggleOrgStatus);
+router.post("/organizations/:id/reset-password", controller.adminResetOrgPassword);
+router.post("/organizations/:id/resend-reset-email", controller.resendOrgResetEmail);
+
+// Khôi phục tài khoản
+router.get("/accounts/recover", controller.recoverUserAccount);
+router.post("/users/:id/resend-reset-email", controller.resendResetEmail);
 
 module.exports = router;

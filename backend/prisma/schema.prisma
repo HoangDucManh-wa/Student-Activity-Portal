@@ -173,6 +173,9 @@ model Activity {
   description          String?
   coverImage           String?
   location             String?
+  locationLat          Float?
+  locationLng          Float?
+  locationName         String?
   activityType         String
   teamMode             String            @default("individual")
   startTime            DateTime?
@@ -202,6 +205,7 @@ model Activity {
   clubApplications     ClubApplication[]
   forms                Form[]            @relation("ActivityForms")
   registrations        Registration[]
+  formResponses        FormResponse[]
 
   @@map("activities")
 }
@@ -213,6 +217,10 @@ model ActivityCheckin {
   checkInCloseTime  DateTime?
   checkOutTime      DateTime?
   checkOutCloseTime DateTime?
+  checkinLatitude   Float?
+  checkinLongitude Float?
+  checkinRadius     Int       @default(200)
+  checkinPlaceName  String?
 
   activity             Activity              @relation(fields: [activityId], references: [activityId], onDelete: Cascade)
   registrationCheckins RegistrationCheckin[]
@@ -605,6 +613,7 @@ model FormResponse {
   formId          Int
   userId          Int?
   registrationId  Int?
+  activityId      Int?
   isDeleted       Boolean       @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @default(now())
@@ -612,8 +621,12 @@ model FormResponse {
   form            Form          @relation(fields: [formId], references: [formId])
   user            User?         @relation(fields: [userId], references: [userId])
   registration    Registration? @relation(fields: [registrationId], references: [registrationId])
+  activity        Activity?     @relation(fields: [activityId], references: [activityId])
   answers         Answer[]
 
+  // Mỗi user chỉ có 1 câu trả lời cho 1 form trong 1 activity
+  // Activity = null khi form standalone (không gắn activity)
+  @@unique([formId, userId, activityId])
   @@map("form_responses")
 }
 

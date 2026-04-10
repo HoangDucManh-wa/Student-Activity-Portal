@@ -1,12 +1,18 @@
 const { z } = require("zod");
 
-const configValueSchema = z.union([
-  z.object({ enabled: z.boolean() }),
-  z.object({ value: z.number().int().min(0).max(100000) }),
-]);
-
 const updateConfigSchema = z.object({
-  value: configValueSchema,
+  // value is a JSON object — validate the known shapes but allow any structure
+  // so new config types (e.g. domains array) don't require schema changes
+  value: z.object({
+    enabled: z.boolean().optional(),
+    value: z.number().int().min(0).max(100000).optional(),
+    domains: z.array(z.string().min(1)).optional(),
+    slides: z.array(z.object({
+      imageUrl: z.string(),
+      linkUrl: z.string().optional(),
+      alt: z.string(),
+    })).optional(),
+  }).passthrough(),
   organizationId: z.coerce.number().int().positive().optional().nullable(),
 });
 

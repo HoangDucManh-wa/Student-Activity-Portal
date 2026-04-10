@@ -84,7 +84,8 @@ const bulkUpdateStatus = async (req, res, next) => {
 const checkin = async (req, res, next) => {
   try {
     const result = await registrationsService.checkin(
-      req.params.id, req.body.activityCheckinId, req.user.userId
+      req.params.id, req.body.activityCheckinId, req.user.userId,
+      req.body.latitude, req.body.longitude
     );
     return success(res, result);
   } catch (err) {
@@ -95,7 +96,8 @@ const checkin = async (req, res, next) => {
 const checkout = async (req, res, next) => {
   try {
     const result = await registrationsService.checkout(
-      req.params.id, req.body.activityCheckinId
+      req.params.id, req.body.activityCheckinId,
+      req.body.latitude, req.body.longitude
     );
     return success(res, result);
   } catch (err) {

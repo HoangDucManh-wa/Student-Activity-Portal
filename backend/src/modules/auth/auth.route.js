@@ -14,6 +14,7 @@ const {
   resendOtpSchema,
   forgotPasswordOrganizationSchema,
   resetPasswordOrganizationSchema,
+  loginOrganizationSchema,
 } = require("./auth.validation");
 
 const router = Router();
@@ -21,6 +22,7 @@ const router = Router();
 // Public routes
 router.post("/register", validate(registerSchema), controller.register);
 router.post("/login", validate(loginSchema), controller.login);
+router.post("/login/organization", validate(loginOrganizationSchema), controller.loginOrganization);
 router.post("/refresh-token", validate(refreshTokenSchema), controller.refreshToken);
 router.post("/forgot-password", validate(forgotPasswordSchema), controller.forgotPassword);
 router.post("/reset-password", validate(resetPasswordSchema), controller.resetPassword);

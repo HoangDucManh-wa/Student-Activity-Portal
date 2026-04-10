@@ -445,14 +445,17 @@ const deleteForm = async (formId, deletedBy) => {
 
 // ─── Submit form ──────────────────────────────────────────────────────────────
 
-const submitForm = async (formId, payload, userId) => {
+const submitForm = async (formId, payload, userId, registrationId = null) => {
   const form = await prisma.form.findFirst({
     where: { formId: Number(formId), isDeleted: false },
   });
   if (!form) throw new AppError("FORM_NOT_FOUND");
 
+  // Activity ID: lấy từ form nếu có, dùng registration.activityId khi truyền vào
+  const activityId = payload.activityId ?? form.activityId ?? null;
+
   // Activity-linked forms bypass form-level status/time checks
-  if (!form.activityId) {
+  if (!activityId) {
     if (form.status !== FORM_STATUS.OPEN) throw new AppError("FORM_CLOSED");
     const now = new Date();
     if (form.openAt && now < new Date(form.openAt)) throw new AppError("FORM_CLOSED");
@@ -461,14 +464,14 @@ const submitForm = async (formId, payload, userId) => {
 
   if (form.responseLimit) {
     const count = await prisma.formResponse.count({
-      where: { formId: Number(formId), isDeleted: false },
+      where: { formId: Number(formId), ...(activityId ? { activityId } : {}), isDeleted: false },
     });
     if (count >= form.responseLimit) throw new AppError("FORM_CLOSED");
   }
 
   if (form.limitOneResponse && userId) {
     const existing = await prisma.formResponse.findFirst({
-      where: { formId: Number(formId), userId, isDeleted: false },
+      where: { formId: Number(formId), userId, ...(activityId ? { activityId } : {}), isDeleted: false },
     });
     if (existing && !form.allowEditResponse) throw new AppError("FORM_ALREADY_SUBMITTED");
   }
@@ -478,7 +481,7 @@ const submitForm = async (formId, payload, userId) => {
   return prisma.$transaction(async (tx) => {
     if (form.allowEditResponse && userId) {
       const existing = await tx.formResponse.findFirst({
-        where: { formId: Number(formId), userId, isDeleted: false },
+        where: { formId: Number(formId), userId, ...(activityId ? { activityId } : {}), isDeleted: false },
       });
       if (existing) {
         const oldAnswers = await tx.answer.findMany({
@@ -507,6 +510,8 @@ const submitForm = async (formId, payload, userId) => {
       data: {
         formId: Number(formId),
         userId: userId || null,
+        registrationId: registrationId || null,
+        activityId,
         respondentEmail: payload.respondentEmail || null,
       },
     });
@@ -554,7 +559,7 @@ const submitForm = async (formId, payload, userId) => {
 
 // ─── Get responses ────────────────────────────────────────────────────────────
 
-const getResponses = async (formId, { page = 1, limit = 20, status, userId, search }) => {
+const getResponses = async (formId, { page = 1, limit = 20, status, userId, search, activityId }) => {
   const form = await prisma.form.findFirst({
     where: { formId: Number(formId), isDeleted: false },
   });
@@ -565,6 +570,7 @@ const getResponses = async (formId, { page = 1, limit = 20, status, userId, sear
 
   const where = {
     formId: Number(formId),
+    ...(activityId && { activityId: Number(activityId) }),
     ...(userId && { userId: Number(userId) }),
     ...(search && {
       user: {
@@ -666,9 +672,14 @@ const approveResponse = async (formId, responseId, status) => {
 
 // ─── Get current user's own response ─────────────────────────────────────────
 
-const getMyResponse = async (formId, userId) => {
+const getMyResponse = async (formId, userId, activityId = null) => {
   const response = await prisma.formResponse.findFirst({
-    where: { formId: Number(formId), userId, isDeleted: false },
+    where: {
+      formId: Number(formId),
+      userId,
+      ...(activityId ? { activityId } : {}),
+      isDeleted: false,
+    },
     orderBy: { submittedAt: "desc" },
     include: {
       answers: {
@@ -684,6 +695,7 @@ const getMyResponse = async (formId, userId) => {
           },
         },
       },
+      activity: { select: { activityId: true, activityName: true } },
     },
   });
   return response ?? null;

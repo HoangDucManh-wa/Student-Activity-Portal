@@ -46,8 +46,15 @@ module.exports = {
   APPLICATION_ALREADY_DECIDED: { statusCode: 400, message: "Đơn ứng tuyển đã được xử lý" },
 
   // ─── Checkin ──────────────────────────────────────────
-  CHECKIN_SESSION_NOT_FOUND:   { statusCode: 404, message: "Phiên điểm danh không tồn tại" },
-  CHECKIN_ALREADY_EXISTS:      { statusCode: 409, message: "Đã điểm danh cho phiên này" },
+  CHECKIN_SESSION_NOT_FOUND:    { statusCode: 404, message: "Phiên điểm danh không tồn tại" },
+  CHECKIN_ALREADY_EXISTS:       { statusCode: 409, message: "Đã điểm danh cho phiên này" },
+  CHECKIN_NOT_OPENED_YET:       { statusCode: 400, message: "Chưa đến giờ check-in" },
+  CHECKIN_WINDOW_CLOSED:        { statusCode: 400, message: "Đã hết giờ check-in" },
+  CHECKOUT_NOT_OPENED:          { statusCode: 400, message: "Check-out chưa được mở" },
+  CHECKOUT_NOT_OPENED_YET:      { statusCode: 400, message: "Chưa đến giờ check-out" },
+  CHECKOUT_WINDOW_CLOSED:      { statusCode: 400, message: "Đã hết giờ check-out" },
+  OUT_OF_RANGE:                 { statusCode: 400, message: "Vị trí của bạn không trùng với địa điểm tổ chức" },
+  GPS_DENIED:                   { statusCode: 400, message: "Không thể lấy vị trí. Vui lòng bật GPS và cho phép truy cập vị trí." },
 
   // ─── Notification ─────────────────────────────────────
   NOTIFICATION_NOT_FOUND:      { statusCode: 404, message: "Thông báo không tồn tại" },

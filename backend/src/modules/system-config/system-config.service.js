@@ -100,22 +100,52 @@ const updateConfig = async (key, value, updatedBy, organizationId) => {
   const orgId = organizationId ? Number(organizationId) : null;
 
   const config = await prisma.$transaction(async (tx) => {
-    const existing = await tx.systemConfig.findFirst({
-      where: { key, organizationId: orgId, isDeleted: false },
+    // Include soft-deleted records so we can reactivate them
+    const existingAny = await tx.systemConfig.findFirst({
+      where: { key, organizationId: orgId },
     });
 
-    if (existing) {
+    if (existingAny) {
+      if (existingAny.isDeleted) {
+        // Reactivate soft-deleted record instead of creating duplicate (which would hit unique constraint)
+        const globalConfig = !orgId ? null : await tx.systemConfig.findFirst({
+          where: { key, organizationId: null, isDeleted: false },
+        });
+
+        await tx.systemLog.create({
+          data: {
+            action: `config.reactivate.${key}.org.${orgId ?? "global"}`,
+            oldData: null,
+            newData: JSON.stringify(value),
+            userId: updatedBy,
+          },
+        });
+
+        return tx.systemConfig.update({
+          where: { configId: existingAny.configId },
+          data: {
+            value,
+            isDeleted: false,
+            deletedAt: null,
+            deletedBy: null,
+            updatedBy,
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      // Normal update
       await tx.systemLog.create({
         data: {
           action: `config.update.${key}`,
-          oldData: JSON.stringify(existing.value),
+          oldData: JSON.stringify(existingAny.value),
           newData: JSON.stringify(value),
           userId: updatedBy,
         },
       });
 
       return tx.systemConfig.update({
-        where: { configId: existing.configId },
+        where: { configId: existingAny.configId },
         data: { value, updatedBy, updatedAt: new Date() },
       });
     }
@@ -229,7 +259,10 @@ const updateMyOrgConfig = async (key, value, userId) => {
     where: { userId, role: { in: ORG_LEADER_ROLES }, isDeleted: false },
   });
   if (!member) throw new AppError("FORBIDDEN", "Bạn không phải thành viên lãnh đạo của tổ chức nào");
-  return updateConfig(key, value, userId, member.organizationId);
+  const result = await updateConfig(key, value, userId, member.organizationId);
+  // Invalidate org-specific cache so the worker picks up the new value immediately
+  await cache.del(orgCacheKey(key, member.organizationId));
+  return result;
 };
 
 module.exports = {

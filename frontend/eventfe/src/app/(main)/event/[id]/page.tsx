@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { getMe } from "@/services/auth.service"
 import { useAuthModal } from "@/contexts/auth-modal.context"
-import { Clock, CheckCheck } from "lucide-react"
+import { Clock, CheckCheck, MapPin, Loader2, AlertCircle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,38 @@ const TYPE_MAP: Record<string, string> = {
   competition: "Cuộc thi",
   recruitment: "Tuyển thành viên",
 }
+
+// ─── GPS / Haversine ───────────────────────────────────────────────────────────
+
+const EARTH_RADIUS_M = 6_371_071
+
+function toRad(n: number) { return (n * Math.PI) / 180 }
+
+function haversineDistance(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2
+  return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`
+  return `${(meters / 1000).toFixed(1)} km`
+}
+
+// GPS status for the action button
+type GpsStatus =
+  | { state: "idle" }
+  | { state: "acquiring" }
+  | { state: "ready"; lat: number; lng: number; distance: number | null; within: boolean }
+  | { state: "denied" }
+  | { state: "error"; message: string }
 
 // ─── Button states ────────────────────────────────────────────────────────────
 
@@ -153,6 +185,7 @@ export default function DetailEventPage() {
   const queryClient = useQueryClient()
   const { open: openAuthModal } = useAuthModal()
   const [loading, setLoading] = useState(false)
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>({ state: "idle" })
   const [cancelLoading, setCancelLoading] = useState(false)
   const [showPhoneDialog, setShowPhoneDialog] = useState(false)
   const [showFormDialog, setShowFormDialog] = useState(false)
@@ -203,8 +236,8 @@ export default function DetailEventPage() {
   const registrationForm = (formData as any)?.data ?? null
 
   const { data: myResponseData, refetch: refetchMyResponse } = useQuery({
-    queryKey: ["my-form-response", formId],
-    queryFn: () => getMyFormResponse(formId!),
+    queryKey: ["my-form-response", formId, activityData?.data?.activityId],
+    queryFn: () => getMyFormResponse(formId!, undefined, activityData?.data?.activityId),
     enabled: hasToken && !!formId,
   })
   const myFormResponse = (myResponseData as any)?.data ?? null
@@ -237,6 +270,45 @@ export default function DetailEventPage() {
     ? now > new Date(activity.registrationDeadline)
     : false
   const showCancel = (buttonState === "registered" || buttonState === "waiting") && !deadlinePassed
+
+  // Acquire GPS whenever the checkin/checkout window becomes active
+  useEffect(() => {
+    const needsGps = buttonState === "checkin" || buttonState === "checkout"
+    if (!needsGps) { setGpsStatus({ state: "idle" }); return }
+
+    setGpsStatus({ state: "acquiring" })
+    if (!navigator.geolocation) {
+      setGpsStatus({ state: "error", message: "Trình duyệt không hỗ trợ GPS" })
+      return
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        const anchorLat = activity?.activeCheckinSession?.checkinLatitude ?? null
+        const anchorLng = activity?.activeCheckinSession?.checkinLongitude ?? null
+        const radius = activity?.activeCheckinSession?.checkinRadius ?? 200
+        let distance: number | null = null
+        let within = false
+        if (anchorLat != null && anchorLng != null) {
+          distance = haversineDistance(lat, lng, anchorLat, anchorLng)
+          within = distance <= radius
+        }
+        setGpsStatus({ state: "ready", lat, lng, distance, within })
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsStatus({ state: "denied" })
+        } else {
+          setGpsStatus({ state: "error", message: "Không lấy được vị trí" })
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
+    )
+
+    return () => navigator.geolocation.clearWatch(watchId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buttonState, activity?.activeCheckinSession?.checkinLatitude, activity?.activeCheckinSession?.checkinLongitude, activity?.activeCheckinSession?.checkinRadius])
 
   const handleAction = async () => {
     if (!activity) return
@@ -283,25 +355,71 @@ export default function DetailEventPage() {
       } else if (buttonState === "checkin") {
         const checkinId = activity.activeCheckinSession?.checkinId
         if (!checkinId || !registration) return
+
+        // ── GPS guard ──────────────────────────────────────────────────────────
+        if (gpsStatus.state === "denied") {
+          toast.error("Vui lòng bật GPS và cho phép truy cập vị trí để check-in")
+          return
+        }
+        if (gpsStatus.state === "error") {
+          toast.error((gpsStatus as { state: "error"; message: string }).message)
+          return
+        }
+        if (gpsStatus.state === "acquiring") {
+          toast.info("Đang lấy vị trí, vui lòng chờ...")
+          return
+        }
+        const { lat, lng } = gpsStatus as { state: "ready"; lat: number; lng: number; distance: number | null; within: boolean }
+
         const res = await import("@/configs/http.comfig").then(({ http }) =>
           http.post<{ success: boolean }>(
             `${process.env.NEXT_PUBLIC_API_URL}/registrations/${registration.registrationId}/checkin`,
-            { activityCheckinId: checkinId }
+            { activityCheckinId: checkinId, latitude: lat, longitude: lng }
           )
         ) as any
         if (res?.success) { toast.success("Check-in thành công!"); refetchReg() }
-        else toast.error(res?.message ?? "Check-in thất bại")
+        else {
+          const msg = res?.message ?? "Check-in thất bại"
+          if (msg.includes("GPS") || msg.includes("vị trí") || msg.includes("range") || msg.includes("khoảng")) {
+            toast.error(msg + ". Vui lòng di chuyển đến gần địa điểm sự kiện.")
+          } else {
+            toast.error(msg)
+          }
+        }
       } else if (buttonState === "checkout") {
         const checkinId = activity.activeCheckinSession?.checkinId
         if (!checkinId || !registration) return
+
+        // ── GPS guard ──────────────────────────────────────────────────────────
+        if (gpsStatus.state === "denied") {
+          toast.error("Vui lòng bật GPS và cho phép truy cập vị trí để check-out")
+          return
+        }
+        if (gpsStatus.state === "error") {
+          toast.error((gpsStatus as { state: "error"; message: string }).message)
+          return
+        }
+        if (gpsStatus.state === "acquiring") {
+          toast.info("Đang lấy vị trí, vui lòng chờ...")
+          return
+        }
+        const { lat, lng } = gpsStatus as { state: "ready"; lat: number; lng: number; distance: number | null; within: boolean }
+
         const res = await import("@/configs/http.comfig").then(({ http }) =>
           http.put<{ success: boolean }>(
             `${process.env.NEXT_PUBLIC_API_URL}/registrations/${registration.registrationId}/checkout`,
-            { activityCheckinId: checkinId }
+            { activityCheckinId: checkinId, latitude: lat, longitude: lng }
           )
         ) as any
         if (res?.success) { toast.success("Check-out thành công!"); refetchReg() }
-        else toast.error(res?.message ?? "Check-out thất bại")
+        else {
+          const msg = res?.message ?? "Check-out thất bại"
+          if (msg.includes("GPS") || msg.includes("vị trí") || msg.includes("range") || msg.includes("khoảng")) {
+            toast.error(msg + ". Vui lòng di chuyển đến gần địa điểm sự kiện.")
+          } else {
+            toast.error(msg)
+          }
+        }
       }
     } catch {
       toast.error("Có lỗi xảy ra, vui lòng thử lại")
@@ -479,6 +597,7 @@ export default function DetailEventPage() {
       })
       const formPayload = {
         formId: registrationForm.formId,
+        activityId: activity.activityId,
         answers,
       }
 
@@ -519,7 +638,7 @@ export default function DetailEventPage() {
           return
         }
 
-        const legacyFormRes = await submitForm(registrationForm.formId, { answers }) as any
+        const legacyFormRes = await submitForm(registrationForm.formId, { activityId: activity.activityId, answers }) as any
         if (!legacyFormRes?.success) {
           toast.error(legacyFormRes?.message ?? "Đăng ký thành công nhưng gửi biểu mẫu thất bại")
           return
@@ -640,7 +759,7 @@ export default function DetailEventPage() {
         {/* Main action button */}
         <button
           onClick={handleAction}
-          disabled={loading || btnCfg.disabled}
+          disabled={loading || btnCfg.disabled || gpsStatus.state === "acquiring"}
           className={`
             flex items-center justify-center
             bg-[#05566B] w-[220px] h-[50px] rounded-[20px]
@@ -650,13 +769,53 @@ export default function DetailEventPage() {
             ${btnCfg.textClass}
           `}
         >
-          {loading ? "Đang xử lý..." : (
+          {loading ? (
+            "Đang xử lý..."
+          ) : gpsStatus.state === "acquiring" ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Đang lấy vị trí...
+            </>
+          ) : (
             <>
               {btnCfg.label}
               {btnCfg.icon}
             </>
           )}
         </button>
+
+        {/* GPS status strip */}
+        {(buttonState === "checkin" || buttonState === "checkout") && gpsStatus.state !== "idle" && (
+          <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${
+            gpsStatus.state === "acquiring" ? "bg-gray-50 border-gray-200 text-gray-500" :
+            gpsStatus.state === "denied" ? "bg-red-50 border-red-200 text-red-600" :
+            gpsStatus.state === "error" ? "bg-red-50 border-red-200 text-red-600" :
+            (gpsStatus as { state: "ready"; within: boolean }).within
+              ? "bg-green-50 border-green-200 text-green-700"
+              : "bg-orange-50 border-orange-200 text-orange-700"
+          }`}>
+            {gpsStatus.state === "acquiring" && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
+            {gpsStatus.state === "denied" && <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+            {gpsStatus.state === "error" && <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+            {gpsStatus.state === "ready" && (
+              (gpsStatus as { state: "ready"; within: boolean }).within
+                ? <MapPin className="w-3.5 h-3.5 shrink-0" />
+                : <MapPin className="w-3.5 h-3.5 shrink-0" />
+            )}
+
+            {gpsStatus.state === "acquiring" && "Đang xác định vị trí..."}
+            {gpsStatus.state === "denied" && "Chưa có quyền truy cập vị trí"}
+            {gpsStatus.state === "error" && ((gpsStatus as { state: "error"; message: string }).message)}
+            {gpsStatus.state === "ready" && (() => {
+              const gs = gpsStatus as { state: "ready"; distance: number | null; within: boolean }
+              const radius = activity?.activeCheckinSession?.checkinRadius ?? 200
+              if (gs.distance === null) return "Đã có vị trí"
+              return gs.within
+                ? `Cách địa điểm ${formatDistance(gs.distance)} — Trong phạm vi ${radius}m`
+                : `Cách địa điểm ${formatDistance(gs.distance)} — Ngoài phạm vi ${radius}m`
+            })()}
+          </div>
+        )}
 
         {/* Cancel button */}
         {showCancel && (

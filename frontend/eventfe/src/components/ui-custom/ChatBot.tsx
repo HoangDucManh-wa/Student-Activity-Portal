@@ -10,11 +10,7 @@ import {
   deleteSession,
   type ChatSession,
 } from "@/services/chatSession.service"
-
-interface ChatMessage {
-  role: "user" | "model"
-  content: string
-}
+import { useChatBot } from "@/hooks/useChatBot"
 
 type View = "chat" | "history"
 
@@ -22,21 +18,22 @@ export function ChatBot() {
   const [isOpen, setIsOpen] = useState(false)
   const [view, setView] = useState<View>("chat")
 
-  // Current session
+  // Session management (history — kept separate from AI hook)
   const [sessionId, setSessionId] = useState<number | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-
-  // History
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
   const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // ── RAG-powered chatbot hook ─────────────────────────────────────────────────
+  const { messages, isLoading, sendMessage, reset, isContextReady } = useChatBot()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isLoading])
+
+  // ── History ────────────────────────────────────────────────────────────────
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -48,22 +45,16 @@ export function ChatBot() {
     }
   }, [])
 
-  // Load a session from history
   const openSession = async (id: number) => {
     const res = await getSessionById(id)
     if (!res?.data) return
-    const session = res.data
-    setSessionId(session.sessionId)
-    setMessages(
-      (session.messages ?? []).map((m) => ({ role: m.role as "user" | "model", content: m.content }))
-    )
+    setSessionId(res.data.sessionId)
     setView("chat")
   }
 
-  // Start a brand new session
   const startNewSession = () => {
     setSessionId(null)
-    setMessages([])
+    reset()
     setView("chat")
   }
 
@@ -73,117 +64,43 @@ export function ChatBot() {
     setSessions((prev) => prev.filter((s) => s.sessionId !== id))
     if (sessionId === id) {
       setSessionId(null)
-      setMessages([])
+      reset()
     }
   }
 
-  async function sendMessage() {
+  // ── Send message ────────────────────────────────────────────────────────────
+
+  async function handleSend() {
     const text = input.trim()
     if (!text || isLoading) return
 
-    const userMsg: ChatMessage = { role: "user", content: text }
-    const nextMessages = [...messages, userMsg]
-    setMessages(nextMessages)
     setInput("")
-    setIsLoading(true)
-
     let currentSessionId = sessionId
 
-    try {
-      // Create session on first message
-      if (!currentSessionId) {
-        const created = await createSession(text.slice(0, 60))
-        if (created?.data?.sessionId) {
-          currentSessionId = created.data.sessionId
-          setSessionId(currentSessionId)
-        }
+    // Create backend session on first message
+    if (!currentSessionId) {
+      const created = await createSession(text.slice(0, 60)).catch(() => null)
+      if (created?.data?.sessionId) {
+        currentSessionId = created.data.sessionId
+        setSessionId(currentSessionId)
       }
+    }
 
-      const res = await fetch("/api/ai/chat/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          history: messages,
-          context: { activities: [], organizations: [], currentUser: null },
-        }),
-      })
+    await sendMessage(text)
 
-      if (!res.ok || !res.body) {
-        throw new Error("stream_unavailable")
+    // Persist conversation to backend session
+    if (currentSessionId) {
+      const recent = messages.slice(-2)
+      if (recent.length === 2) {
+        await saveMessages(currentSessionId, recent).catch(() => {})
       }
-
-      // Add an empty model bubble — we'll fill it progressively
-      const placeholderMsg: ChatMessage = { role: "model", content: "" }
-      setMessages([...nextMessages, placeholderMsg])
-      setIsLoading(false)
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulated = ""
-      let buffer = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        // SSE lines end with \n\n — process complete events
-        const parts = buffer.split("\n\n")
-        buffer = parts.pop() ?? ""
-
-        for (const part of parts) {
-          const line = part.trim()
-          if (!line.startsWith("data:")) continue
-          const raw = line.slice(5).trim()
-          if (raw === "[DONE]") break
-          try {
-            const parsed = JSON.parse(raw)
-            if (parsed.text) {
-              accumulated += parsed.text
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { role: "model", content: accumulated }
-                return updated
-              })
-            }
-          } catch {
-            // partial JSON — ignore
-          }
-        }
-      }
-
-      // Fallback if nothing was accumulated
-      const finalReply = accumulated || "Xin lỗi, tôi không thể phản hồi lúc này."
-      if (!accumulated) {
-        setMessages([...nextMessages, { role: "model", content: finalReply }])
-      }
-
-      const modelMsg: ChatMessage = { role: "model", content: finalReply }
-
-      // Persist both messages to the session
-      if (currentSessionId) {
-        await saveMessages(currentSessionId, [userMsg, modelMsg]).catch(() => {})
-      }
-    } catch {
-      const errMsg: ChatMessage = {
-        role: "model",
-        content: "Không thể kết nối đến AI service. Vui lòng kiểm tra lại.",
-      }
-      setMessages([...nextMessages, errMsg])
-      if (currentSessionId) {
-        await saveMessages(currentSessionId, [userMsg, errMsg]).catch(() => {})
-      }
-    } finally {
-      setIsLoading(false)
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      handleSend()
     }
   }
 
@@ -224,7 +141,9 @@ export function ChatBot() {
                 {view === "history" ? "Lịch sử trò chuyện" : "Trợ lý AI"}
               </p>
               {view === "chat" && (
-                <p className="text-white/70 text-[11px]">Hỏi về sự kiện, CLB, đăng ký...</p>
+                <p className="text-white/70 text-[11px]">
+                  {isContextReady ? "Hỏi về sự kiện, CLB, đăng ký..." : "Đang tải dữ liệu..."}
+                </p>
               )}
             </div>
             {view === "chat" && (
@@ -301,16 +220,27 @@ export function ChatBot() {
           {/* ── Chat view ── */}
           {view === "chat" && (
             <>
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50" style={{ height: 360, maxHeight: 360 }}>
+              <div
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50"
+                style={{ height: 360, maxHeight: 360 }}
+              >
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 text-[13px] gap-2">
                     <Bot size={32} className="text-[#05566B]/30" />
-                    <p>Xin chào! Tôi có thể giúp bạn tìm sự kiện,<br />thông tin CLB và hỗ trợ đăng ký.</p>
+                    <p>
+                      Xin chào! Tôi có thể giúp bạn tìm sự kiện,
+                      <br />
+                      thông tin CLB và hỗ trợ đăng ký.
+                    </p>
+                    {!isContextReady && (
+                      <Loader2 size={14} className="animate-spin mt-1" />
+                    )}
                   </div>
                 )}
 
                 {messages.map((msg, i) => {
-                  const isStreaming = !isLoading && msg.role === "model" && i === messages.length - 1 && msg.content === ""
+                  const isPlaceholder =
+                    !isLoading && msg.role === "model" && i === messages.length - 1 && msg.content === ""
                   return (
                     <div
                       key={i}
@@ -329,8 +259,8 @@ export function ChatBot() {
                         }`}
                       >
                         {msg.content}
-                        {/* Blinking cursor while streaming */}
-                        {!isLoading && msg.role === "model" && i === messages.length - 1 && (
+                        {/* Blinking cursor for streaming placeholder */}
+                        {isPlaceholder && (
                           <span className="inline-block w-[2px] h-[13px] ml-0.5 bg-gray-400 align-middle animate-pulse" />
                         )}
                       </div>
@@ -338,7 +268,7 @@ export function ChatBot() {
                   )
                 })}
 
-                {/* Spinner only while waiting for the very first token */}
+                {/* Loading dots while AI is thinking */}
                 {isLoading && (
                   <div className="flex gap-2 justify-start">
                     <div className="w-7 h-7 rounded-full bg-[#05566B] flex items-center justify-center flex-shrink-0">
@@ -361,13 +291,15 @@ export function ChatBot() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Nhập câu hỏi..."
+                  placeholder={
+                    isContextReady ? "Nhập câu hỏi..." : "Đang tải dữ liệu portal..."
+                  }
                   disabled={isLoading}
                   className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-[13px] outline-none focus:border-[#05566B] disabled:opacity-50"
                 />
                 <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !input.trim()}
+                  onClick={handleSend}
+                  disabled={isLoading || !input.trim() || !isContextReady}
                   className="w-9 h-9 rounded-full bg-[#05566B] text-white flex items-center justify-center hover:bg-[#06677f] disabled:opacity-40 transition-colors"
                 >
                   <Send size={15} />

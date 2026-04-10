@@ -9,21 +9,37 @@ interface SafeImageProps extends Omit<ImageProps, "onError"> {
   fallbackSrc?: string
 }
 
-/**
- * Wrapper around next/image that:
- * - Falls back to a local placeholder on error
- * - Uses unoptimized for external URLs (avoids hostname whitelist issues)
- */
+function isValidSrc(src: unknown): src is string {
+  if (typeof src !== "string" || !src.trim()) return false
+  try {
+    new URL(src)
+    return true
+  } catch {
+    // Relative path or other valid src — let Next.js handle it
+    return src.startsWith("/") || src.startsWith("./") || src.startsWith("../")
+  }
+}
+
 export function SafeImage({ src, fallbackSrc = FALLBACK, alt, ...rest }: SafeImageProps) {
   const [imgSrc, setImgSrc] = useState(src)
 
-  const isExternal = typeof imgSrc === "string" && imgSrc.startsWith("http")
+  const resolvedSrc = imgSrc ?? fallbackSrc
+
+  // Prevent Next.js Image from crashing on invalid/undefined src
+  if (!isValidSrc(resolvedSrc)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={fallbackSrc} alt={alt ?? ""} {...rest} />
+    )
+  }
+
+  const isExternal = resolvedSrc.startsWith("http")
 
   return (
     <Image
       {...rest}
-      src={imgSrc || fallbackSrc}
-      alt={alt}
+      src={resolvedSrc}
+      alt={alt ?? ""}
       unoptimized={isExternal}
       onError={() => setImgSrc(fallbackSrc)}
     />

@@ -3,6 +3,7 @@ from typing import Generator
 from config.gemini import get_model
 from utils.errors import raise_error
 from modules.chatbot.schemas import ChatMessage, PortalContext
+from modules.retrieval.service import retrieve_activities, retrieve_organizations
 
 SYSTEM_PROMPT = """Bạn là trợ lý AI của Student Activity Portal - nền tảng quản lý hoạt động sinh viên.
 
@@ -14,19 +15,30 @@ Nhiệm vụ của bạn:
 
 Quy tắc:
 - Trả lời bằng tiếng Việt, thân thiện và ngắn gọn
+- LUÔN dẫn nguồn từ dữ liệu RAG, không bịa đặt thông tin
 - Nếu không có đủ thông tin, nói rõ và gợi ý liên hệ ban tổ chức
-- Không bịa đặt thông tin về hoạt động không có trong dữ liệu
 """
 
 
 def build_system_prompt(context: PortalContext) -> str:
     parts = [SYSTEM_PROMPT]
 
-    if context.activities:
-        parts.append(f"\nDanh sách hoạt động hiện có:\n{json.dumps(context.activities, ensure_ascii=False, indent=2)}")
+    # 1. Retrieve relevant context from vector DB (RAG)
+    query = context.currentUser.get("query", "") if context.currentUser else ""
+    retrieved_activities = retrieve_activities(query, top_k=5) if query else []
+    retrieved_orgs = retrieve_organizations(query, top_k=3) if query else []
 
-    if context.organizations:
-        parts.append(f"\nDanh sách tổ chức:\n{json.dumps(context.organizations, ensure_ascii=False, indent=2)}")
+    # 2. Fallback to backend-provided context if retrieval is empty
+    activities_data = (
+        retrieved_activities if retrieved_activities else context.activities
+    )
+    orgs_data = retrieved_orgs if retrieved_orgs else context.organizations
+
+    if activities_data:
+        parts.append(f"\nHoạt động liên quan (từ RAG):\n{json.dumps(activities_data, ensure_ascii=False, indent=2)}")
+
+    if orgs_data:
+        parts.append(f"\nTổ chức liên quan (từ RAG):\n{json.dumps(orgs_data, ensure_ascii=False, indent=2)}")
 
     if context.currentUser:
         parts.append(f"\nThông tin sinh viên đang chat:\n{json.dumps(context.currentUser, ensure_ascii=False)}")

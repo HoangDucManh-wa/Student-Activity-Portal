@@ -176,6 +176,7 @@ export interface CreateFormPayload {
 
 export interface SubmitFormPayload {
   respondentEmail?: string | null
+  activityId?: number | null
   answers: {
     questionId: number
     textValue?: string | null

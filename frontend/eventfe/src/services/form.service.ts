@@ -106,8 +106,9 @@ export async function exportGoogleSheets(id: string | number, token?: string) {
   )
 }
 
-export async function getMyFormResponse(id: string | number, token?: string) {
-  return http.get<ApiResponse<FormResponse | null>>(`${BASE}/${id}/my-response`, token)
+export async function getMyFormResponse(id: string | number, token?: string, activityId?: number) {
+  const params = activityId ? `?activityId=${activityId}` : ""
+  return http.get<ApiResponse<FormResponse | null>>(`${BASE}/${id}/my-response${params}`, token)
 }
 
 export async function acceptFormRespondents(orgId: number | string, userIds: number[]) {

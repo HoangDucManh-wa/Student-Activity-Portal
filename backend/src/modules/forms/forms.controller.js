@@ -74,10 +74,12 @@ const changeStatus = async (req, res, next) => {
 
 const submitForm = async (req, res, next) => {
   try {
+    const { registrationId } = req.body;
     const result = await formsService.submitForm(
       req.params.id,
       req.body,
-      req.user.userId
+      req.user.userId,
+      registrationId || null
     );
     return success(res, result, 201);
   } catch (err) {
@@ -146,7 +148,12 @@ const exportGoogleSheets = async (req, res, next) => {
 
 const getMyResponse = async (req, res, next) => {
   try {
-    const result = await formsService.getMyResponse(req.params.id, req.user.userId);
+    const { activityId } = req.query;
+    const result = await formsService.getMyResponse(
+      req.params.id,
+      req.user.userId,
+      activityId ? Number(activityId) : null
+    );
     return success(res, result);
   } catch (err) {
     next(err);

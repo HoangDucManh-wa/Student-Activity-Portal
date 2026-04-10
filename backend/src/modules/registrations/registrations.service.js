@@ -8,6 +8,9 @@ const {
 } = require("../../config/bullmq");
 const { resolveFields } = require("../../utils/s3-helpers");
 const cache = require("../../utils/cache");
+const { isWithinRadius } = require("../../utils/geo");
+const { CONFIG_KEYS } = require("../../utils/constants");
+const systemConfigService = require("../system-config/system-config.service");
 
 // ─── Create registration (queue-based) ──────────────────────────────────────
 //
@@ -422,7 +425,7 @@ const bulkUpdateStatus = async (registrationIds, status, userId) => {
 
 // ─── Check in ───────────────────────────────────────────────────────────────
 
-const checkin = async (registrationId, activityCheckinId, userId) => {
+const checkin = async (registrationId, activityCheckinId, userId, latitude, longitude) => {
   const registration = await prisma.registration.findFirst({
     where: { registrationId: Number(registrationId), isDeleted: false },
   });
@@ -438,6 +441,15 @@ const checkin = async (registrationId, activityCheckinId, userId) => {
   });
   if (!session) throw new AppError("CHECKIN_SESSION_NOT_FOUND");
 
+  // ─── Enforce check-in time window ─────────────────────────────────────────
+  const now = new Date();
+  if (session.checkInTime && now < new Date(session.checkInTime)) {
+    throw new AppError("CHECKIN_NOT_OPENED_YET");
+  }
+  if (session.checkInCloseTime && now > new Date(session.checkInCloseTime)) {
+    throw new AppError("CHECKIN_WINDOW_CLOSED");
+  }
+
   // Check duplicate
   const existing = await prisma.registrationCheckin.findUnique({
     where: {
@@ -448,6 +460,27 @@ const checkin = async (registrationId, activityCheckinId, userId) => {
     },
   });
   if (existing) throw new AppError("CHECKIN_ALREADY_EXISTS");
+
+  // ─── Geo validation ────────────────────────────────────────────────────────
+  // Only enforce when session has geo anchor AND config requires it
+  if (session.checkinLatitude != null && session.checkinLongitude != null) {
+    const config = await systemConfigService.getConfig(CONFIG_KEYS.CHECKIN_REQUIRE_LOCATION);
+    if (config?.enabled !== false) {
+      // Reject if coordinates are missing, zero, or null — covers denied/pending GPS
+      if (!latitude || !longitude || (latitude === 0 && longitude === 0)) {
+        throw new AppError("GPS_DENIED");
+      }
+      const radius = session.checkinRadius ?? 200;
+      const within = isWithinRadius(
+        latitude,
+        longitude,
+        session.checkinLatitude,
+        session.checkinLongitude,
+        radius
+      );
+      if (!within) throw new AppError("OUT_OF_RANGE");
+    }
+  }
 
   return prisma.registrationCheckin.create({
     data: {
@@ -460,7 +493,7 @@ const checkin = async (registrationId, activityCheckinId, userId) => {
 
 // ─── Check out ──────────────────────────────────────────────────────────────
 
-const checkout = async (registrationId, activityCheckinId) => {
+const checkout = async (registrationId, activityCheckinId, latitude, longitude) => {
   const existing = await prisma.registrationCheckin.findUnique({
     where: {
       registrationId_activityCheckinId: {
@@ -470,6 +503,39 @@ const checkout = async (registrationId, activityCheckinId) => {
     },
   });
   if (!existing) throw new AppError("CHECKIN_SESSION_NOT_FOUND");
+
+  // ─── Enforce checkout time window ──────────────────────────────────────────
+  const session = await prisma.activityCheckin.findUnique({
+    where: { checkinId: Number(activityCheckinId) },
+  });
+  if (!session) throw new AppError("CHECKIN_SESSION_NOT_FOUND");
+
+  const now = new Date();
+  if (!session.checkOutTime) throw new AppError("CHECKOUT_NOT_OPENED");
+  if (now < new Date(session.checkOutTime)) throw new AppError("CHECKOUT_NOT_OPENED_YET");
+  if (session.checkOutCloseTime && now > new Date(session.checkOutCloseTime)) {
+    throw new AppError("CHECKOUT_WINDOW_CLOSED");
+  }
+
+  // ─── Geo validation ────────────────────────────────────────────────────────
+  if (session.checkinLatitude != null && session.checkinLongitude != null) {
+    const config = await systemConfigService.getConfig(CONFIG_KEYS.CHECKIN_REQUIRE_LOCATION);
+    if (config?.enabled !== false) {
+      // Reject if coordinates are missing, zero, or null — covers denied/pending GPS
+      if (!latitude || !longitude || (latitude === 0 && longitude === 0)) {
+        throw new AppError("GPS_DENIED");
+      }
+      const radius = session.checkinRadius ?? 200;
+      const within = isWithinRadius(
+        latitude,
+        longitude,
+        session.checkinLatitude,
+        session.checkinLongitude,
+        radius
+      );
+      if (!within) throw new AppError("OUT_OF_RANGE");
+    }
+  }
 
   return prisma.registrationCheckin.update({
     where: { checkinId: existing.checkinId },
@@ -669,6 +735,7 @@ const createRegistrationWithForm = async (data, userId) => {
           formId: formResponse.formId,
           userId,
           registrationId: reg.registrationId,
+          activityId: activityId,
           status: "submitted",
         },
       });
